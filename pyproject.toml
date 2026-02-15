@@ -1,0 +1,42 @@
+[project]
+name = "lmi-oa"
+version = "0.1.0"
+description = "LMI_OA AI 报告订阅与自动化推送系统"
+readme = "README.md"
+requires-python = ">=3.12"
+# 保持依赖清晰，uv 会自动生成精确到版本的 uv.lock
+dependencies = [
+    "celery>=5.6.2",
+    "django>=6.0.1",
+    "django-celery-beat>=2.1.0",
+    "filetype>=1.2.0",
+    "flower>=2.0.1",
+    "google-api-python-client>=2.188.0",
+    "google-auth-httplib2>=0.3.0",
+    "google-auth-oauthlib>=1.2.4",
+    "google-genai>=1.60.0",
+    "gunicorn>=24.1.1",
+    "markdown>=3.10.1",
+    "openai>=2.16.0",
+    "pillow>=12.1.0",
+    "pytz>=2025.2",
+    "redis>=7.1.0",
+    "python-dotenv>=1.0.1", # 强烈建议添加，用于管理 API Key
+    "django-rosetta>=0.10.3",
+    "polib>=1.2.0",
+    "pandas>=3.0.0",
+    "openpyxl>=3.1.5",
+    "django-timezone-field>=4.2.3",
+]
+
+# --- 🚀 核心优化：定义快捷任务 ---
+# 这样你可以在服务器直接运行 `uv run <cmd>`
+[tool.uv]
+managed = true
+package = false # 对于 Django 项目，通常不需要将其本身打包
+
+[project.scripts]
+# 定义快捷命令
+server = "gunicorn LMI_OA.wsgi:application --bind 0.0.0.0:8001 --timeout 120"
+worker = "celery -A LMI_OA worker -l info"
+beat = "celery -A LMI_OA beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"

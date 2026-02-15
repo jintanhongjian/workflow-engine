@@ -1,0 +1,47 @@
+# 核心框架（锁定 6.0.x，避免 6.1 的时区不兼容问题）
+django>=6.0.2,<6.1
+
+# 项目多语言支持
+django-rosetta>=0.10.3
+polib>=1.2.0
+
+# 异步任务处理
+celery>=5.4.0
+flower>=2.0.1
+django-celery-beat>=2.5.0
+redis>=5.0.0
+
+# 时区处理（这是解决 'str' object has no attribute 'zone' 的关键）
+# 保持 pytz 存在以兼容旧版插件的 localize 方法
+pytz>=2024.1
+django-timezone-field>=7.0
+
+# 数据库与环境
+django-environ>=0.11.0
+psycopg2-binary>=2.9.0
+sqlparse>=0.4.4
+
+# google工具
+google-api-core          2.29.0
+google-api-python-client 2.190.0
+google-auth              2.48.0
+google-auth-httplib2     0.3.0
+google-auth-oauthlib     1.2.4
+google-genai             1.63.0
+googleapis-common-protos 1.72.0
+openai>=2.16.0
+
+# 强烈建议添加，用于管理 API Key
+python-dotenv>=1.0.1
+
+# 文件处理工具
+markdown>=3.10.1
+pillow>=12.1.0
+polib>=1.2.0
+pandas>=3.0.0
+openpyxl>=3.1.5
+filetype>=1.2.0
+
+# Web 服务器与开发工具
+gunicorn>=22.0.0
+uv>=0.1.0
