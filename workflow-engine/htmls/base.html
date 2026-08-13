@@ -1,0 +1,196 @@
+{% load i18n %}
+{% get_current_language as LANGUAGE_CODE %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<body>
+    <div id="lang-floater" class="fixed bottom-32 right-8 z-[999] touch-none select-none">
+        <div id="lang-ball" class="w-14 h-14 bg-indigo-600/80 backdrop-blur-lg border border-white/30 rounded-full shadow-2xl flex items-center justify-center cursor-move active:scale-90 transition-transform duration-200 group">
+            <i class="material-icons text-white transition-transform group-hover:rotate-12">Lang</i>
+        </div>
+
+        <div id="lang-menu" class="absolute bottom-16 right-0 mb-2 w-32 bg-white/90 backdrop-blur-2xl border border-white/50 rounded-[2rem] p-2 shadow-2xl opacity-0 scale-90 pointer-events-none transition-all duration-300 origin-bottom-right">
+            {% get_current_language as CURRENT_LANG %}
+            {% get_available_languages as LANGUAGES %}
+            
+            <form action="{% url 'set_language' %}" method="post">
+                {% csrf_token %}
+                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                <div class="flex flex-col gap-1">
+                    {% for lang in LANGUAGES %}
+                    <button type="submit" name="language" value="{{ lang.0 }}" 
+                            class="w-full px-4 py-3 rounded-2xl text-xs font-black uppercase transition-all flex items-center justify-between
+                            {% if lang.0 == CURRENT_LANG %}
+                                bg-indigo-600 text-white
+                            {% else %}
+                                text-slate-600 hover:bg-indigo-50
+                            {% endif %}">
+                        {{ lang.1 }}
+                        {% if lang.0 == CURRENT_LANG %}
+                        <i class="material-icons text-[14px]"></i>
+                        {% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+    </div>
+    <main>
+      {% block content %}
+      {% endblock %}
+    </main>  
+<script>
+    /**
+     * LMI_OA 自动语言检测与切换工具 (优化版)
+     */
+    (function() {
+        // 1. 获取浏览器语言并映射
+        const browserLang = (navigator.language || navigator.userLanguage).toLowerCase();
+        const shortLang = browserLang.split('-')[0];
+        
+        // 映射到 Django 对应的代码 (确保与 settings.py LANGUAGES 一致)
+        const langMap = {
+            'zh': 'zh-hans',
+            'en': 'en'
+        };
+        const targetLang = langMap[shortLang];
+
+        // 2. 增强型 Cookie 获取函数
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        const currentDjangoLang = getCookie('django_language');
+
+        // 3. 执行检测与异步 POST
+        // 增加 !currentDjangoLang 判断：如果 Cookie 已存在，说明用户选过，不再自动覆盖
+        if (targetLang && !currentDjangoLang && !sessionStorage.getItem('lang_auto_switched')) {
+            
+            console.log(`LMI_OA: 检测到首选语言为 ${browserLang}，准备自动适配...`);
+
+            const formData = new FormData();
+            formData.append('language', targetLang);
+            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+
+            // 优化点：使用绝对路径 '/i18n/setlang/' 防止在子路由下 404
+            // 确保你的 urls.py 中 path('i18n/', include('django.conf.urls.i18n'))
+            fetch('/i18n/setlang/', {
+                method: 'POST',
+                body: formData,
+                // 必须带上这个，否则 Django 可能会拒绝非同源请求
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    sessionStorage.setItem('lang_auto_switched', 'true');
+                    window.location.reload();
+                }
+            })
+            .catch(err => console.warn('LMI_OA 语言自动适配失败:', err));
+        }
+    })();   
+    // 解决了拖动过程中的误点触，并增加了 吸附动画 
+    (function() {
+        const ball = document.getElementById('lang-ball');
+        const floater = document.getElementById('lang-floater');
+        const menu = document.getElementById('lang-menu');
+        
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+        let hasMoved = false;
+
+        // --- 拖拽逻辑 ---
+        ball.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', dragMove);
+        document.addEventListener('mouseup', dragEnd);
+
+        // 适配移动端
+        ball.addEventListener('touchstart', (e) => dragStart(e.touches[0]));
+        document.addEventListener('touchmove', (e) => dragMove(e.touches[0]));
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            isDragging = true;
+            hasMoved = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = floater.getBoundingClientRect();
+            initialX = rect.left;
+            initialY = rect.top;
+            ball.classList.add('scale-110');
+        }
+
+        function dragMove(e) {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            
+            // 判定是否移动（防止微小抖动误认为拖拽）
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
+
+            floater.style.left = `${initialX + dx}px`;
+            floater.style.top = `${initialY + dy}px`;
+            floater.style.right = 'auto'; // 拖动后解除右对齐
+            floater.style.bottom = 'auto'; // 拖动后解除下对齐
+        }
+
+        function dragEnd() {
+            isDragging = false;
+            ball.classList.remove('scale-110');
+            // 自动贴边吸附（可选）
+            if (hasMoved) {
+                const windowWidth = window.innerWidth;
+                const rect = floater.getBoundingClientRect();
+                if (rect.left + rect.width / 2 > windowWidth / 2) {
+                    floater.style.left = 'auto';
+                    floater.style.right = '2rem';
+                } else {
+                    floater.style.left = '2rem';
+                    floater.style.right = 'auto';
+                }
+            }
+        }
+
+        // --- 点击菜单逻辑 ---
+        ball.addEventListener('click', () => {
+            if (!hasMoved) { // 只有在没有发生拖拽的情况下才触发菜单
+                const isOpened = !menu.classList.contains('opacity-0');
+                if (isOpened) {
+                    hideMenu();
+                } else {
+                    showMenu();
+                }
+            }
+        });
+
+        function showMenu() {
+            menu.classList.remove('opacity-0', 'scale-90', 'pointer-events-none');
+            menu.classList.add('opacity-100', 'scale-100');
+        }
+
+        function hideMenu() {
+            menu.classList.add('opacity-0', 'scale-90', 'pointer-events-none');
+            menu.classList.remove('opacity-100', 'scale-100');
+        }
+
+        // 点击外部关闭菜单
+        document.addEventListener('click', (e) => {
+            if (!floater.contains(e.target)) hideMenu();
+        });
+    })();
+
+</script>
+</body>  
+</html>

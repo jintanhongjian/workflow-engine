@@ -1,0 +1,303 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 订阅管理中心</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/bootstrap-icons.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'PingFang SC', sans-serif; }
+        .card-shadow { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
+        .user-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logout-btn {
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .logout-btn:hover {
+            background-color: #ff6b81;
+        }
+        /* 核心布局：横向排列并两端对齐 */
+        .page-header-wrapper {
+            display: flex;
+            justify-content: space-between; /* 关键：标题在左，用户在右 */
+            align-items: flex-end;         /* 底部对齐，视觉上更稳 */
+            padding-bottom: 15px;
+            margin-top: 20px;
+        }
+
+        /* 下拉菜单定位逻辑 */
+        .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-toggle {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .dropdown-toggle:hover {
+            background: #f1f5f9;
+        }
+
+        /* 隐藏菜单，悬浮显示 */
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0; /* 靠右对齐，防止溢出屏幕 */
+            top: 100%;
+            background: white;
+            min-width: 160px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            z-index: 50;
+            margin-top: 5px;
+            padding: 8px 0;
+        }
+
+        .user-dropdown:hover .dropdown-menu {
+            display: block; /* 悬浮时展示 */
+        }
+
+        /* 菜单项样式 */
+        .dropdown-menu a, .logout-link {
+            display: block;
+            padding: 10px 15px;
+            color: #475569;
+            text-decoration: none;
+            font-size: 14px;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        .dropdown-menu a:hover, .logout-link:hover {
+            background-color: #f1f5f9;
+            color: #1e293b;
+        }
+
+        .header-divider {
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-12">
+
+{% load i18n %} 
+      
+{% if messages %}
+    {% for message in messages %}
+    <div class="mb-4 p-4 rounded-xl {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-10">
+            <div class="page-header-wrapper">
+                <div class="header-content">
+                    <h1 class="text-3xl font-black text-gray-900">我的 AI 订阅管理</h1>
+                    <p class="text-gray-500 mt-1">您可以查看、编辑或取消已订阅的情报流</p>
+                </div>
+            </div>
+            <hr class="header-divider"/>
+            <div class="page-header-wrapper">
+                <div class="header-content">
+                    <div class="relative group">
+                        {% if user.is_authenticated %}
+                        <button id="user-menu-button" class="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm hover:bg-slate-50 transition-all focus:outline-none">
+                            <span class="font-bold">欢迎, {{ user.username }}</span>
+                            <svg class="w-4 h-4 transition-transform group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+
+                        <div id="user-menu-dropdown" class="absolute right-0 pt-2 w-48 z-50 
+                                    opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                            <div class="bg-white rounded-2xl shadow-xl border border-slate-100 p-2 space-y-1">
+                                <a href="{% url 'password_change' %}" class="flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-colors">
+                                    🔐 {% trans "修改密码" %}
+                                </a>
+                                <hr class="border-slate-100 my-1">
+                                <form action="{% url 'logout' %}" method="post" class="m-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-colors text-left">
+                                        🚪 {% trans "退出登录" %}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                            <a href="{% url 'login' %}" class="px-4 py-2 bg-indigo-600 text-white rounded-xl">登录</a>
+                        {% endif %}
+                    </div>
+                    <br>
+                    <div class="fixed bottom-10 right-10 z-[100]">
+                        <button onclick="newSubs()" 
+                                class="group flex items-center gap-3 px-6 py-4 rounded-2xl 
+                                    bg-indigo-600/50 backdrop-blur-md border border-blue/20 
+                                    text-red shadow-[0_20px_50px_rgba(79,70,229,0.3)]
+                                    hover:bg-indigo-600 hover:shadow-indigo-500/50 
+                                    hover:text-white
+                                    transition-all duration-300 active:scale-95">
+                            
+                            <div class="bg-blue-200 p-1.5 rounded-lg group-hover:bg-white/30 transition-colors">
+                                <svg class="w-6 h-6 transform group-hover:rotate-90 transition-transform duration-500" 
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6v12M6 12h12"></path>
+                                </svg>
+                            </div>
+                            <span class="text-lg font-black tracking-wide pr-2">新增订阅</span>
+                            <div class="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/0 via-white/10 to-white/0 
+                                        -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none">
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>            
+        </header>
+        <hr class="header-divider"/>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="subscriptionList">
+            {% for sub in subscriptions %}
+            <div class="bg-white rounded-2xl border transition-all duration-300 flex flex-col h-full relative 
+                {% if sub.is_active %}
+                    border-indigo-100 card-shadow hover:shadow-xl hover:-translate-y-1
+                {% else %}
+                    border-gray-200 bg-gray-50/50 opacity-80
+                {% endif %}" 
+                id="sub-{{ sub.pk }}">
+                <div class="p-8 flex-grow">
+                    <div class="flex justify-between items-start mb-6">
+                        <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">
+                            ID: {{ sub.pk }}
+                        </span>
+                        <div class="space-x-2">
+                            <a href="{% url 'ai_subscription:subscription_update' sub.pk %}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">编辑</a>
+                            <a href="{% url 'ai_subscription:subscription_delete' sub.pk %}" class="text-red-500 hover:text-red-700 text-sm font-medium">删除</a>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-xl font-bold text-gray-800 mb-1">{{ sub.report_title }}</h3>
+                    <p class="text-sm text-gray-400 mb-4 tracking-wide">
+                        关键词：{{ sub.keywords|default:"未设置" }}
+                    </p>
+                    
+                    <div class="text-sm text-gray-600 line-clamp-2 mb-4 leading-relaxed">
+                        {{ sub.description|truncatechars:100 }}
+                    </div>
+                </div>
+
+                <div class="border-t pt-4 flex justify-between text-xs text-gray-400 mb-6 px-8">
+                    <span>周期：{{ sub.get_period_display }}</span>
+                    
+                    <span>发送时间：{{ sub.send_time|time:"H:i" }}</span>
+                </div>
+                <div class="flex items-center space-x-2 px-8 mb-4">
+                    {% if sub.is_active %}
+                    <a href="{% url 'ai_subscription:trigger_report' sub.id %}" 
+                    onclick="return confirm('确定要立即启动 AI 分析并生成简报吗？任务将在后台异步执行。')"
+                    class="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" 
+                    title="立即生成简报">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </a>
+                    {% else %}
+                    <span class="bg-gray-400 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm">
+                        PAUSED
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="px-8 py-5 bg-gray-50 rounded-b-3xl border-t border-gray-100 flex items-center justify-between">
+                    <div class="text-xs text-gray-400">
+                        <span class="block">下次推送: {{ sub.send_time|time:"H:i" }}</span>
+                    </div>
+                    <a href="{% url 'ai_subscription:report_history_list' sub.pk %}" class="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center">
+                        查看往期历史
+                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg>
+                    </a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-span-full py-20 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                <p class="text-gray-400">暂无订阅记录，点击右上角新增一个吧！</p>
+            </div>
+            {% endfor %}
+        </div> 
+
+    </div>
+
+    <script>
+        // 确保点击菜单内部时不会意外触发关闭
+        document.addEventListener('DOMContentLoaded', () => {
+            const button = document.getElementById('user-menu-button');
+            const dropdown = document.getElementById('user-menu-dropdown');
+
+            if (button && dropdown) {
+                // 1. 点击按钮手动切换显示（解决移动端和点击失灵）
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isVisible = !dropdown.classList.contains('invisible');
+                    if (isVisible) {
+                        hideMenu();
+                    } else {
+                        showMenu();
+                    }
+                });
+
+                // 2. 点击菜单内部：只有点击非按键区域才阻止冒泡
+                dropdown.addEventListener('click', (e) => {
+                    if (!e.target.closest('a, button')) {
+                        e.stopPropagation(); // 阻止点击空白处关闭菜单
+                    }
+                });
+
+                // 3. 点击页面其他地方关闭
+                document.addEventListener('click', () => {
+                    hideMenu();
+                });
+
+                function showMenu() {
+                    dropdown.classList.remove('opacity-0', 'invisible');
+                    dropdown.classList.add('opacity-100');
+                }
+
+                function hideMenu() {
+                    dropdown.classList.add('opacity-0', 'invisible');
+                    dropdown.classList.remove('opacity-100');
+                }
+            }
+        });
+        function newSubs() {
+            // 假设你的 Django 路由 name='subs_ai' 对应的路径是 '/subs_ai/'
+            window.location.href = '/subs/subs_ai/';
+        }
+
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Python-generated files
+.venv/
+__pycache__/
+*.pyc
+db.sqlite3
+media/
+logs/
+pids/
+.env
+token.json
+credentials.json
+local_settings.py
+
+# Virtual environments
+.venv
+tailwindcss-linux-x64

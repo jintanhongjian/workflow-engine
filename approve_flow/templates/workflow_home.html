@@ -1,0 +1,84 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流引擎 - 导航主页</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <link href="{% static 'plugins/fontawesome/css/all.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/inter.css' %}" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .hover-lift { transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .hover-lift:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+    </style>
+</head>
+<body class="text-slate-900 min-h-screen flex flex-col">
+
+    <header class="h-16 bg-white border-b px-8 flex items-center shadow-sm z-30 justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                <i class="fas fa-network-wired text-xs"></i>
+            </div>
+            <h1 class="text-sm font-bold tracking-tight text-slate-700">Workflow Engine 控制台</h1>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-10 mt-8">
+        <div class="mb-12 text-center">
+            <h2 class="text-3xl font-extrabold text-slate-800 tracking-tight mb-4">欢迎使用审批流引擎</h2>
+            <p class="text-slate-500 font-medium">请选择您需要进入的功能模块</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- 流程设计器 -->
+            <a href="{% url 'approve_flow:designer' %}" class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm hover-lift group relative overflow-hidden block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+                <div class="relative z-10">
+                    <div class="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl mb-6 shadow-inner border border-indigo-50">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">流程设计器</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-6">可视化拖拽创建、编辑审批流程模板。定义节点、审批人及流转规则。</p>
+                    <div class="flex items-center text-indigo-600 font-bold text-sm">
+                        进入设计器 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 测试预览中心 -->
+            <a href="{% url 'approve_flow:test_center' %}" class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm hover-lift group relative overflow-hidden block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+                <div class="relative z-10">
+                    <div class="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mb-6 shadow-inner border border-blue-50">
+                        <i class="fas fa-vial"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">测试中心</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-6">预览审批流径，模拟发起审批单，测试审批动作与节点流转是否符合预期。</p>
+                    <div class="flex items-center text-blue-600 font-bold text-sm">
+                        进入测试中心 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 组织架构管理 -->
+            <a href="{% url 'approve_flow:org_dashboard' %}" class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm hover-lift group relative overflow-hidden block">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+                <div class="relative z-10">
+                    <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mb-6 shadow-inner border border-emerald-50">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800 mb-3">组织架构</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-6">管理部门树状结构，维护人员与角色映射映射，支持权限与流程汇报线。</p>
+                    <div class="flex items-center text-emerald-600 font-bold text-sm">
+                        进入管理页 <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 transition-transform"></i>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </main>
+
+</body>
+</html>

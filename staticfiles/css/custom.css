@@ -1,0 +1,39 @@
+/* 基于本地 tailwind.css 数值提取的自定义按钮类 */
+
+/* “通过”按钮 - 对应 emerald-500 */
+.btn-action-pass {
+    background-color: rgba(16, 185, 129, 1) !important; /* emerald-500 */
+    color: white !important;
+}
+.btn-action-pass:hover {
+    background-color: rgba(5, 150, 105, 1) !important; /* emerald-600 */
+}
+
+/* “驳回”或“取消”按钮 - 对应 rose-500 (本地文件中映射为 red-500) */
+.btn-action-reject {
+    background-color: rgba(239, 68, 68, 1) !important; /* red-500 */
+    color: white !important;
+}
+.btn-action-reject:hover {
+    background-color: rgba(220, 38, 38, 1) !important; /* red-600 */
+}
+
+/* “打回重做”按钮 - 对应 yellow-500 */
+.btn-action-return {
+    background-color: rgba(245, 158, 11, 1) !important; /* yellow-500 */
+    color: white !important;
+}
+.btn-action-return:hover {
+    background-color: rgba(217, 119, 6, 1) !important; /* yellow-600 */
+}
+
+/* 通用按钮基础样式 (复用本地 tailwind 类) */
+.btn-base {
+    font-weight: 700;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-radius: 0.75rem; /* rounded-xl */
+    font-size: 0.75rem;     /* text-xs */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* shadow-md */
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}

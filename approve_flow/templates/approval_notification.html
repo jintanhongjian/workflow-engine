@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审批任务通知</title>
+    <style>
+        /* 针对部分客户端的响应式补丁 */
+        @media screen and (max-width: 600px) {
+            .container { width: 100% !important; }
+            .button { width: 100% !important; text-align: center !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7fa; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table border="0" cellpadding="0" cellspacing="0" width="600" class="container" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                    
+                    <tr>
+                        <td style="background-color: #6366f1; padding: 4px; text-align: center;"></td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="margin: 0 0 20px; color: #1e293b; font-size: 22px; font-weight: bold;">
+                                📝 待审批任务提醒
+                            </h2>
+                            <p style="margin: 0 0 24px; color: #64748b; font-size: 16px; line-height: 1.6;">
+                                您好，<strong>{{ user_name }}</strong>：<br>
+                                系统中有新的 <strong>{{ workflow_name }}</strong> 申请需要您的决策。请查阅以下单据摘要：
+                            </p>
+
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border-radius: 8px; margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            <tr>
+                                                <td width="80" style="padding-bottom: 10px; color: #94a3b8; font-size: 13px; font-weight: bold; text-transform: uppercase;">申请人</td>
+                                                <td style="padding-bottom: 10px; color: #334155; font-size: 14px;">{{ applicant }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td width="80" style="padding-bottom: 10px; color: #94a3b8; font-size: 13px; font-weight: bold; text-transform: uppercase;">业务金额</td>
+                                                <td style="padding-bottom: 10px; color: #6366f1; font-size: 18px; font-weight: bold;">¥ {{ amount }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td width="80" style="color: #94a3b8; font-size: 13px; font-weight: bold; text-transform: uppercase;">提交日期</td>
+                                                <td style="color: #334155; font-size: 14px;">{{ submit_date }}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{ detail_url }}" target="_blank" class="button" style="display: inline-block; padding: 16px 32px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);">
+                                            立即处理申请
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 30px 0 0; color: #94a3b8; font-size: 12px; text-align: center;">
+                                如果按钮无法点击，请复制以下链接到浏览器访问：<br>
+                                <a href="{{ detail_url }}" style="color: #6366f1;">{{ detail_url }}</a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="background-color: #f8fafc; padding: 20px; text-align: center; color: #94a3b8; font-size: 12px;">
+                            © 2026 LMI OA 系统 | 此邮件由系统自动发出，请勿直接回复。
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

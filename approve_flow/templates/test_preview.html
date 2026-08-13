@@ -1,0 +1,536 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>审批流程模拟器 - Workflow Engine</title>
+    <link href="{% static 'css/tailwind.css' %}" rel="stylesheet">
+    <link href="{% static 'plugins/fontawesome/css/all.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+    <style>
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        .step-node:last-child .chevron { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-6 md:p-12">
+{% if messages %}
+    {% for message in messages %}
+    <div class="mb-4 p-4 rounded-xl {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+<div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">
+            <i class="fas fa-project-diagram text-indigo-600 mr-3"></i>审批路径模拟器
+        </h1>
+        <div class="flex gap-2">
+            <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">Debug Mode</span>
+            <span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">Hierarchy Active</span>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-10 gap-8">
+        <div class="lg:col-span-4 space-y-3">
+            <div class="bg-slate-800 p-5 rounded-2xl shadow-lg border border-slate-700">
+                <label class="block text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">载入未完成的测试单据</label>
+                <select id="load_instance" class="w-full bg-slate-700 text-black rounded-lg border-slate-600 p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">-- 新建测试单据 --</option>
+                    {% for apply in active_applies %}
+                    <option value="{{ apply.id }}" 
+                            data-code="{{ apply.workflow_code }}" 
+                            data-type="{{ apply.business_type }}"
+                            data-bcode="{{ apply.business_code }}"
+                            data-title="{{ apply.application_title }}"
+                            data-amount="{{ apply.amount }}"
+                            data-user="{{ apply.user.id }}"
+                            data-dept="{{ apply.department.id }}"
+                            data-desc="{{ apply.business_description }}">
+                        [{{ apply.business_code }}] {{ apply.application_title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-sm font-bold text-slate-500 uppercase mb-5 tracking-widest text-center border-b pb-4">测试单据</h2>
+                
+                <div class="space-y-5 mt-4">
+                    <div class="col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">流程模板</label>
+                        <select id="workflow_code" class="w-full rounded-lg border-slate-200 p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none border">
+                            <option value="">-- 请选择流程 --</option>
+                            {% for wf in workflows %}
+                            <option value="{{ wf.code }}" {% if workflow_code == wf.code %}selected{% endif %}>{{ wf.name }} ({{ wf.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">业务类型</label>
+                        <input type="text" id="business_type" value="测试单据" class="w-full rounded-lg border-slate-200 p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none border">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">业务编号</label>
+                        <input type="text" id="business_code" value="TEST2024001" class="w-full rounded-lg border-slate-200 p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none border">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">申请标题</label>
+                        <input type="text" id="application_title" value="测试实验室自动发起单" class="w-full rounded-lg border-slate-200 p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none border">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">模拟申请人</label>
+                        <select id="user_id" class="w-full rounded-xl border-slate-200 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border text-sm">
+                            {% for user in users %}
+                            <option value="{{ user.id }}" {% if user.id == current_user.id %}selected{% endif %}>
+                                {{ user.username }} 
+                                {% if user.org_info.department %}
+                                <span class="text-gray-400">({{ user.org_info.department.name }})</span>
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">所属部门</label>
+                        <select id="department_id" class="w-full rounded-xl border-slate-200 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border text-sm"
+                        value="{{ user.org_info.department.id}}">
+                            {% for dept in departments %}
+                            <option value="{{ dept.id }}" {% if user.org_info.department and user.org_info.department.id == dept.id %}selected{% endif %}>{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">申请金额 (¥)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-slate-400 font-bold">¥</span>
+                            <input type="number" id="amount" value="0" min="0" class="w-full pl-8 rounded-xl border-slate-200 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border text-sm font-mono">
+                        </div>
+                    </div>
+
+                    <div class="col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">业务描述</label>
+                        <textarea id="business_description" rows="2" class="w-full rounded-lg border-slate-200 p-2 text-sm border" placeholder="输入测试备注..."></textarea>
+                    </div>
+                    <div>
+                        <div class="relative">
+                            <input type="checkbox" id="delete_all" class="pl-8 rounded-xl border-slate-200 shadow-sm">
+                            <label for="delete_all" class="text-sm font-semibold text-slate-700 mb-1">删除所有测试数据</label>
+                        </div>
+                    </div>                    
+                    <div class="grid grid-cols-2 gap-3 mt-6">
+                        <button id="btn-preview" class="w-full bg-indigo-300 hover:bg-indigo-700 text-black hover:text-white font-bold py-3.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 mt-6 active:scale-95">
+                            <i class="fas fa-calculator"></i> 路径预览
+                        </button>
+                        <button id="btn-test" class="w-full bg-indigo-300 hover:bg-indigo-700 text-black hover:text-white font-bold py-3.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 mt-6 active:scale-95">
+                            <i class="fas fa-paper-plane"></i> 送审测试
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-6 space-y-6">
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
+                <h2 class="text-sm font-bold text-slate-500 uppercase mb-8 tracking-widest text-center border-b pb-4">实时审批链预览</h2>
+                <div id="path-container" class="relative">
+                    <div id="empty-state" class="text-center py-20">
+                        <div class="bg-slate-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-microchip text-slate-200 text-4xl"></i>
+                        </div>
+                        <p class="text-slate-400 font-medium">配置左侧参数后点击“计算模拟路径”</p>
+                    </div>
+
+                    <div id="loading-state" class="hidden text-center py-20">
+                        <i class="fas fa-spinner fa-spin text-indigo-500 text-4xl"></i>
+                        <p class="text-slate-500 font-medium mt-6">正在分析组织架构并匹配金额权限...</p>
+                    </div>
+
+                    <div id="path-content" class="hidden">
+                        <div id="visual-path" class="flex flex-wrap items-center justify-center gap-y-8 mb-16 pt-4">
+                            <div class="flex items-center">
+                                <div class="flex flex-col items-center">
+                                    <div class="bg-yellow-600 text-black w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-4 border-blue mb-2">
+                                        <i class="fas fa-user-edit text-sm"></i>
+                                    </div>
+                                    <span class="text-[11px] font-bold text-slate-500 uppercase">发起申请</span>
+                                </div>
+                                <i class="fas fa-long-arrow-alt-right mx-6 text-slate-300 text-xl"></i>
+                            </div>
+                            
+                            <div id="dynamic-nodes" class="flex items-center flex-wrap gap-y-8"></div>
+                            
+                            <div class="flex items-center">
+                                <div class="flex flex-col items-center">
+                                    <div class="bg-green-600 text-black w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-4 border-blue mb-2">
+                                        <i class="fas fa-check-double text-sm"></i>
+                                    </div>
+                                    <div id="end-node" class="w-10 h-10 rounded-full bg-slate-100 text-white flex items-center justify-center">
+                                        <i class="fas fa-flag-checkered text-xs"></i>
+                                    </div>                                    
+                                    <span class="text-[11px] font-bold text-emerald-600 uppercase">审批完成</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-10">
+                            <div class="flex items-center gap-2 mb-6">
+                                <div class="h-4 w-1 bg-indigo-500 rounded-full"></div>
+                                <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">节点审批人明细</h3>
+                            </div>
+                            <div id="detail-cards" class="space-y-5"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="action-panel" class="hidden bg-white p-5 rounded-2xl shadow-sm border-2 border-indigo-100 animate-fade-in">
+                <h2 class="text-xs font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center justify-between">
+                    审批指令控制台
+                    <span class="animate-ping inline-flex h-2 w-2 rounded-full bg-indigo-400 opacity-75"></span>
+                </h2>
+                <div id="instance-info" class="hidden flex items-center gap-3">
+                    <div class="text-right">
+                        <p id="biz-code-display" class="text-xs font-mono font-bold text-slate-700 leading-none">---</p>
+                        <p id="status-text" class="text-[10px] font-bold text-indigo-500 uppercase mt-1">处理中</p>
+                    </div>
+                    <div id="status-indicator" class="w-3 h-3 rounded-full bg-indigo-500 animate-pulse"></div>
+                </div>                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-2 uppercase">模拟操作人</label>
+                        <select id="operator_select" class="w-full rounded-lg border-indigo-100 bg-indigo-50/30 p-2.5 text-xs font-bold text-indigo-700 border"></select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="postAction('PASS')" class="btn-base btn-action-pass">
+                            <i class="fas fa-check mr-1"></i> 通过
+                        </button>
+                        
+                        <button onclick="postAction('REJECT')" class="btn-base btn-action-reject">
+                            <i class="fas fa-times mr-1"></i> 驳回
+                        </button>
+                        
+                        <button onclick="postAction('RETURN')" class="btn-base btn-action-return">
+                            <i class="fas fa-undo mr-1"></i> 打回重做
+                        </button>
+                        
+                        <button onclick="postAction('CANCEL')" class="btn-base btn-action-reject">
+                            <i class="fas fa-times mr-1"></i> 取消审批
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-auto pt-8 border-t border-slate-50">
+        <h3 class="text-[10px] font-black text-slate-400 uppercase mb-4">模拟操作日志</h3>
+        <div id="log-box" class="space-y-2 max-h-32 overflow-y-auto custom-scrollbar text-[11px] font-mono text-slate-500"></div>
+    </div>
+</div>
+
+<script src="{% static 'js/api_client.js' %}"></script>
+<script>
+    const ApiClient = new window.ApiClient({ namespace: 'workflow' });
+
+    let apply_id=null;
+    let instance_id = null;
+    let obj_id = null;
+    let payload ={};
+    const pre_btn = document.getElementById('btn-preview');
+    const test_btn = document.getElementById('btn-test');
+    const load_select = document.getElementById('load_instance');
+    const emptyState = document.getElementById('empty-state');
+    const loadingState = document.getElementById('loading-state');
+    const pathContent = document.getElementById('path-content');
+    const dynamicNodes = document.getElementById('dynamic-nodes');
+    const detailCards = document.getElementById('detail-cards');
+    const actionPanel = document.getElementById('action-panel')
+
+    async function triggerAPI(endpoint, method, type='test', action=null) {
+        payload = {
+            apply_id: apply_id,
+            obj_id: obj_id,
+            instance_id: instance_id,
+            delete_all: document.getElementById('delete_all').checked,
+            flowCode: document.getElementById('workflow_code').value,
+            business_code: document.getElementById('business_code').value,
+            title: document.getElementById('application_title').value,
+            business_type: document.getElementById('business_type').value,
+            user_id: document.getElementById('user_id').value,
+            operator_id: document.getElementById('operator_select').value,
+            dept_id: document.getElementById('department_id').value,
+            business_description: document.getElementById('business_description').value,
+            amount: document.getElementById('amount').value,
+        };
+
+        if (!payload.flowCode) return alert("请选择流程模板");
+
+        flowName = document.getElementById('workflow_code').options[document.getElementById('workflow_code').selectedIndex].text;
+        
+        try {
+            let res_json;
+            if (type === 'test') {
+                addLog(`系统：流程：${flowName}，正在提交测试单据...`);
+                res_json = await ApiClient.post(endpoint, payload);
+            } else if (type === 'preview') {
+                const params = { code: payload.flowCode, user_id: payload.user_id, dept_id: payload.dept_id, amount: payload.amount };
+                addLog(`系统：发送参数，正在请求路径预测数据...`);
+                res_json = await ApiClient.get(endpoint, params);
+            } else if (type === 'load') {
+                const params = { apply_id: apply_id };
+                addLog(`系统：发送请求，正在加载单据实例数据...`);
+                res_json = await ApiClient.get(endpoint, params);
+            } else if (type === 'action') {
+                const actionPayload = {
+                    instance_id: instance_id,
+                    operator_id: payload.operator_id,
+                    action: action
+                };
+                addLog(`系统：正在执行操作：${action}，操作人ID：${payload.operator_id}...`);
+                res_json = await ApiClient.post(endpoint, actionPayload);
+            }
+            
+            addLog(`系统：[${method}] 成功获取路径数据`);
+            return res_json;
+        } 
+        catch (e) {
+            alert("请求失败: " + e.message);
+            throw e;
+        }
+    }    
+
+    function hidden_flowchart() {
+        loadingState.classList.add('hidden');
+        pathContent.classList.add('hidden');
+        actionPanel.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        dynamicNodes.innerHTML = '';
+        detailCards.innerHTML = '';
+    }
+
+    // 载入现有单据逻辑
+    load_select.addEventListener('change', async function(e) {
+        // 请求该单据的真实实例状态
+        try {        
+            const opt = e.target.options[e.target.selectedIndex];
+            if (!opt.value) {
+                instance_id = null;
+                apply_id = null;
+                obj_id = null;
+                document.getElementById('business_code').value = "";
+                document.getElementById('application_title').value = "测试实验室自动发起单";
+                hidden_flowchart()
+                return;
+            }
+            apply_id = e.target.value;
+            obj_id = {{ instances_applied|safe }}.find(item => item.id == apply_id)?.obj_id || null;
+            instance_id = {{ instances_applied|safe }}.find(item => item.id == apply_id)?.instance_id || null;
+            
+            console.log("选中单据ID:",apply_id,  "对应业务对象ID:", obj_id, "实例ID:", instance_id, "正在载入单据数据...");
+            // 自动填充表单
+            document.getElementById('workflow_code').value = opt.dataset.code;
+            document.getElementById('business_type').value = opt.dataset.type;
+            document.getElementById('business_code').value = opt.dataset.bcode;
+            document.getElementById('application_title').value = opt.dataset.title;
+            document.getElementById('amount').value = opt.dataset.amount;
+            document.getElementById('user_id').value = opt.dataset.user;
+            document.getElementById('department_id').value = opt.dataset.dept;
+            document.getElementById('business_description').value = opt.dataset.desc;
+            loadingState.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+                        
+            const res_json = await triggerAPI('api/load-test-instance/', 'GET', 'load');
+            const data = res_json.data;
+            if (data.status === 'success') {
+                addLog(`载入单据成功: ${opt.dataset.bcode}`);
+                renderPath(steps=data.steps);
+            } else {
+                renderPath(steps=null, off=true);
+                alert(data.message);
+            }             
+
+        } 
+        catch (e) {
+            alert("载入失败: " + e.message);
+        } 
+        finally {
+            loadingState.classList.add('hidden');
+        }
+    });
+ 
+    // 预测路径
+    pre_btn.addEventListener('click', preview_process);
+    async function preview_process() {
+        const flowCode = document.getElementById('workflow_code').value;
+        if (!flowCode) {
+            alert('请选择需要测试的业务流程编码');
+            return;
+        }
+        res_json=await triggerAPI('api/preview/', 'GET', 'preview')
+        data = res_json.data;
+        try {
+        // 适配不同的 API 返回包装
+        steps = data.steps;
+        renderPath(steps=steps);
+        }
+        catch(err) {
+            renderPath(steps=null, off=true);
+            alert('计算路径失败：' + err.message);
+        }
+    };
+
+    // 送审测试
+    test_btn.addEventListener('click', test_process)
+    async function test_process() {
+        // 更新实例状态
+        res_json=await triggerAPI('api/test-submit/', 'POST', 'test');
+        data = res_json.data;
+        update_submission(data);
+    }
+
+    function update_submission(data){
+        instance_id = data.instance_id;
+        obj_id = obj_id;
+        if (instance_id) {
+            document.getElementById('instance-info').classList.remove('hidden');
+            actionPanel.classList.remove('hidden');
+            document.getElementById('biz-code-display').innerText = data.business_code;
+            
+            if (data.is_finished) {
+                document.getElementById('status-text').innerText = "已结案";
+                document.getElementById('status-indicator').className = "w-3 h-3 rounded-full bg-green-500";
+                document.getElementById('end-node').className = "w-10 h-10 rounded-full bg-green-500 text-black flex items-center justify-center shadow-lg";
+                // actionPanel.classList.add('hidden');
+            }
+            
+            // 刷新审批人下拉
+            const select = document.getElementById('operator_select');
+            select.innerHTML = (data.current_approvers || []).map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+        }        
+    }
+
+    function renderPath(steps=null, off=false) {
+        if (off) { 
+            loadingState.classList.add('hidden');
+            pathContent.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            return;
+        }
+        emptyState.classList.add('hidden');
+        actionPanel.classList.add('hidden');
+        loadingState.classList.remove('hidden');
+        pathContent.classList.remove('hidden');
+        dynamicNodes.innerHTML = '';
+        detailCards.innerHTML = '';
+        if (!steps || steps.length === 0) {
+            dynamicNodes.innerHTML = '<div class="text-amber-500 text-sm font-bold bg-amber-50 px-4 py-2 rounded-lg border border-amber-100">该金额暂未命中任何审批规则 (直接通过)</div>';
+            return;
+        }
+
+        steps.forEach((step, index) => {
+            // 1. 渲染水平流程图节点
+            const node = document.createElement('div');
+            node.className = 'flex items-center animate-fade-in';
+            node.innerHTML = `
+                <div class="flex flex-col items-center">
+                    <div class="bg-white border-2 ${step.is_superior ? 'border-purple-500 shadow-purple-100' : 'border-indigo-500 shadow-indigo-100'} px-5 py-2.5 rounded-2xl shadow-xl transition-all">
+                        <p class="text-[9px] font-black ${step.is_superior ? 'text-purple-500' : 'text-indigo-500'} uppercase tracking-tighter mb-0.5">${step.is_superior ? 'Hierarchy' : 'Function'}</p>
+                        <p class="text-xs font-extrabold text-slate-700 whitespace-nowrap">${step.name}</p>
+                    </div>
+                </div>
+                <i class="fas fa-long-arrow-alt-right mx-6 text-slate-200 text-xl"></i>
+            `;
+            dynamicNodes.appendChild(node);
+
+            // 2. 准备审批人标签
+            const approverList = Array.isArray(step.approvers) ? step.approvers : [];
+            const approverTags = approverList.map(name => {
+                const isManager = name['category']=='Superior';
+                return `
+                    <div class="flex items-center bg-white border ${isManager ? 'border-purple-200' : 'border-indigo-100'} rounded-lg px-2 py-1.5 shadow-sm">
+                        <div class="w-6 h-6 rounded-md ${isManager ? 'bg-purple-600' : 'bg-indigo-500'} flex items-center justify-center text-[10px] text-black font-bold mr-2">
+                            ${name["name"].charAt(0)}
+                        </div>
+                        <span class="text-xs font-bold ${isManager ? 'text-purple-700' : 'text-indigo-700'}">${name["name"]}</span>
+                    </div>
+                `;
+            }).join('');
+
+            // 3. 渲染详情卡片
+            const card = document.createElement('div');
+            card.className = `group p-5 rounded-2xl border transition-all hover:shadow-lg animate-fade-in ${step.is_superior ? 'bg-purple-50/40 border-purple-100' : 'bg-slate-50 border-slate-200'}`;
+            
+            card.innerHTML = `
+                <div class="flex items-start gap-5">
+                    <div class="bg-white w-12 h-12 rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 shrink-0">
+                        <span class="text-[10px] font-black text-slate-300 uppercase leading-none">Step</span>
+                        <span class="text-lg font-black text-slate-800">${index + 1}</span>
+                    </div>
+                    <div class="grow">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h4 class="font-black text-slate-800 text-base leading-tight">${step.name}</h4>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">LEVEL ${step.level}</span>
+                                    <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100 uppercase">${step.approve_mode}</span>
+                                </div>
+                           </div>
+                           <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">(${step.amount_control ? '金额控制' : '无金额控制'})</span>
+                                    <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">金额范围 (${step.min_amount} - ${step.max_amount}) </span>
+                                </div>
+                            </div>                                
+                            <div class="text-right">
+                                <span class="text-[10px] font-black px-2 py-1 rounded-md uppercase ${step.is_superior ? 'bg-purple-600 text-black' : 'bg-indigo-600 text-black'} shadow-sm">
+                                    ${step.is_superior ? '逐级上报' : '职能路由'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-3">
+                            ${approverTags || `
+                                <div class="flex items-center bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                                    <i class="fas fa-exclamation-triangle text-rose-500 mr-2 text-xs"></i>
+                                    <span class="text-xs font-bold text-rose-600 italic">未找到有效审批人 (请检查组织架构或角色配置)</span>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+            detailCards.appendChild(card);
+        });
+        loadingState.classList.add('hidden');
+    }
+
+    // 测试提交审批动作
+    async function postAction(action) {
+        const operatorId = document.getElementById('operator_select').value;
+        if (!operatorId) return alert("请选择模拟操作人");
+        try {
+            const res_json = await triggerAPI('api/test-action/', 'POST', 'action', action=action);
+            const data = res_json.data;
+            if (data.status === 'success') {
+                update_submission(data);
+                addLog(`审批：用户ID ${operatorId} 执行了 ${action} 操作`);
+            } else {
+                alert(data.message);
+            }
+        } 
+        catch (e) { 
+            alert(e.message); 
+        }
+    }
+
+    function addLog(msg) {
+        const box = document.getElementById('log-box');
+        const time = new Date().toLocaleTimeString();
+        box.innerHTML = `<div>[${time}] ${msg}</div>` + box.innerHTML;
+    }
+</script>
+
+</body>
+</html>

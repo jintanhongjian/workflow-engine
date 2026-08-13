@@ -1,0 +1,7 @@
+{"steps":[
+{"step_id":"10","level":1,"order":1,"approval_mode":"ALL","min_amount":"0","max_amount":null,"permission_tag":"","name":"\xe4\xb8\xbb\xe7\xae\xa1\xe5\x88\x9d\xe5\xae\xa1","superior_approve":true,"roles":"","users":""},
+{"step_id":"11","level":2,"order":2,"approval_mode":"ALL","min_amount":"0","max_amount":null,"permission_tag":"","name":"\xe8\xb4\xa2\xe5\x8a\xa1\xe5\xae\xa1\xe6\x89\xb9","superior_approve":true,"roles":"2","users":""},
+{"step_id":"11","level":2,"order":2,"approval_mode":"ALL","min_amount":"0","max_amount":null,"permission_tag":"","name":"\xe8\xb4\xa2\xe5\x8a\xa1\xe5\xae\xa1\xe6\x89\xb9","superior_approve":false,"roles":"2","users":""},
+{"step_id":"12","level":3,"order":3,"approval_mode":"ANY","min_amount":"0","max_amount":null,"permission_tag":"","name":"\xe5\xae\xa1\xe6\x89\xb9\xe7\x8e\xaf\xe8\x8a\x82","superior_approve":false,"roles":"1","users":"5"},
+{"step_id":"12","level":3,"order":3,"approval_mode":"ANY","min_amount":"0","max_amount":null,"permission_tag":"","name":"\xe5\xae\xa1\xe6\x89\xb9\xe7\x8e\xaf\xe8\x8a\x82","superior_approve":false,"roles":"1","users":"5"}
+]}

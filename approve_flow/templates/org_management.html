@@ -1,0 +1,750 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>组织架构管理 - Workflow Engine</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <link href="{% static 'plugins/fontawesome/css/all.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/inter.css' %}" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .tree-line::before {
+            content: "";
+            position: absolute;
+            left: -12px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #e2e8f0;
+        }
+        /* 弹窗动画 */
+        .modal-overlay { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+        /* 隐藏默认滚动条，使用自定义样式 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #cbd5e1;
+        }
+
+        /* 确保中间 main 区域的背景色与两侧区分 */
+        main.overflow-y-auto {
+            background-image: radial-gradient(#e2e8f0 0.5px, transparent 0.5px);
+            background-size: 20px 20px; /* 背景网格点，增加质感 */
+        }
+
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 h-screen overflow-hidden flex flex-col">
+
+    <header class="h-16 bg-white border-b px-8 flex items-center justify-between shadow-sm z-30">
+        <div class="flex items-center space-x-4">
+            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                <i class="fas fa-sitemap text-xs"></i>
+            </div>
+            <h1 class="text-sm font-bold tracking-tight text-slate-700">组织架构控制台</h1>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <aside class="w-72 bg-white border-r flex flex-col p-6 overflow-hidden">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">部门层级树</h2>
+                    <p class="text-[9px] text-slate-300 font-medium">Organization</p>
+                </div>
+                <button onclick="openAddDeptModal()" 
+                        class="w-7 h-7 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm group">
+                    <i class="fas fa-plus text-[10px] group-hover:scale-110 transition-transform"></i>
+                </button>
+            </div>
+
+            <div class="relative mb-4">
+                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-slate-300">
+                    <i class="fas fa-filter text-[9px]"></i>
+                </span>
+                <input id="dept-filter" type="text" placeholder="过滤部门..." 
+                    class="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[10px] focus:outline-none focus:ring-1 focus:ring-indigo-300">
+            </div>
+            
+            <div id="dept-tree-root" class="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
+                </div>
+        </aside>
+
+        <main class="flex-1 p-10 overflow-y-auto custom-scrollbar">
+            <div class="max-w-4xl mx-auto">
+                <div class="bg-white border border-slate-200 rounded-3xl shadow-sm p-8 transition-all">
+                    <div class="flex justify-between items-start mb-8 border-b pb-6">
+                        <div>
+                            <span id="detail-code" class="text-[10px] font-mono bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md mb-2 inline-block"></span>
+                            <h2 id="detail-name" class="text-2xl font-bold text-slate-800"></h2>
+                            <p class="text-xs text-slate-400 mt-1"></p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-black text-slate-400 uppercase">部门负责人</p>
+                            <div class="flex items-center mt-2">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center mr-2 border border-slate-200">
+                                    <i class="fas fa-user-tie text-slate-400 text-xs"></i>
+                                </div>
+                                <span id="dept_manager" class="text-sm font-bold text-slate-600"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-slate-700">成员与角色映射</h3>
+                        <button onclick="openAddUserModal()" class="px-4 py-1.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-lg hover:bg-indigo-100 transition-all">
+                            <i class="fas fa-plus mr-1"></i>新建员工
+                        </button>
+                    </div>
+                    <div id="member-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <aside class="w-80 bg-white border-l flex flex-col p-6 overflow-hidden">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">角色库</h2>
+                    <p class="text-[9px] text-slate-300 font-medium">Role Definitions</p>
+                </div>
+                <button onclick="openRoleModal()" 
+                    class="w-7 h-7 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
+                    <i class="fas fa-plus text-[10px]"></i>
+                </button>
+            </div>
+
+            <div id="role-list-container" class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                </div>
+
+            <div class="mt-4 pt-4 border-t border-slate-50">
+                <div class="bg-slate-50 rounded-2xl p-4">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">提示</p>
+                    <p class="text-[10px] text-slate-500 leading-relaxed">角色是全局定义的。删除角色前请确保没有审批流正在引用该角色代码。</p>
+                </div>
+            </div>
+        </aside>       
+        
+    </div>
+
+    <div id="dept-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+        <div class="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-8 border-b flex justify-between items-center bg-slate-50/50">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">新增修改部门</h3>
+                    <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-1">Add/Modify Department</p>
+                </div>
+                <button onclick="toggleModal('dept-modal')" class="text-slate-400 hover:text-rose-500 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="dept-form" class="p-8 space-y-5">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">部门名称</label>
+                    <input type="text" name="name" required placeholder="如：研发中心" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">部门代码 (唯一)</label>
+                    <input type="text" name="dept_code" required placeholder="如：RD_CENTER" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">上级部门</label>
+                    <select id="parent-dept-select" name="parent" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all appearance-none">
+                        <option value="">-- 无 (顶级部门) --</option>
+                        </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">负责人角色</label>
+                        <select id="manager-role-select" name="manager_role" 
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all appearance-none">
+                            <option value="">-- 未设置 --</option>
+                        </select>
+                    <p class="text-[9px] text-slate-400 mt-1 italic">* 确定该部门的主管岗位（如：部门经理、总监）</p>
+                </div>
+            </form>
+
+            <div class="p-8 bg-slate-50 flex justify-end space-x-3">
+                <button onclick="toggleModal('dept-modal')" class="px-6 py-2 text-xs font-bold text-slate-400">取消</button>
+                <button onclick="submitDeptForm()" class="px-8 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
+                    确认保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="role-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+        <div class="bg-white w-full max-w-sm rounded-[32px] shadow-2xl overflow-hidden">
+            <div class="p-6 border-b flex justify-between items-center">
+                <h3 class="font-bold text-slate-800">新建角色</h3>
+                <button onclick="toggleModal('role-modal')" class="text-slate-400"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="role-form" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">角色名称</label>
+                    <input type="text" name="name" required placeholder="如：部门经理" class="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">角色代码 (唯一)</label>
+                    <input type="text" name="role_code" required placeholder="如：DEPT_MGR" class="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-mono outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">是否激活</label>
+                    <input type="checkbox" name="is_active" class="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-mono outline-none">
+                </div>
+            </form>
+            <div class="p-6 bg-slate-50 flex justify-end space-x-3">
+                <button onclick="submitRoleForm()" class="px-6 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl">确认保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="user-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+        <div class="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden flex flex-col">
+            <div class="p-8 border-b flex justify-between items-center bg-slate-50/50">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">新增员工</h3>
+                    <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-1">Add/Modify User</p>
+                </div>
+                <button onclick="toggleModal('user-modal')" class="text-slate-400 hover:text-rose-500 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="user-form" class="p-8 space-y-5 overflow-y-auto custom-scrollbar" style="max-height: 70vh;">
+                <input type="hidden" name="user_id">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">用户名</label>
+                        <input type="text" name="username" required placeholder="员工的登录名" 
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">初始密码</label>
+                        <input type="password" name="password" placeholder="留空则不修改" 
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">名字</label>
+                        <input type="text" name="first_name" placeholder="如：Alfred" 
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">姓氏</label>
+                        <input type="text" name="last_name" placeholder="如：Pu" 
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">电子邮件</label>
+                    <input type="email" name="email" placeholder="如：alfred.pu@example.com" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">职位</label>
+                    <input type="text" name="job_title" placeholder="如：软件工程师" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+                </div>
+                 <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">所属部门</label>
+                    <select id="user-dept-select" name="department" required
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all appearance-none">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">直接上级</label>
+                    <select id="user-superior-select" name="superior"
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all appearance-none">
+                        <option value="">-- 无 --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-2">分配角色</label>
+                    <select id="user-roles-select" name="roles" multiple
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs focus:ring-2 focus:ring-indigo-400 outline-none transition-all h-32 custom-scrollbar">
+                    </select>
+                </div>
+                <div>
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" name="is_active" class="rounded border-slate-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <span class="text-xs font-medium text-slate-600">有效</span>
+                    </label>
+                    <p class="text-[9px] text-slate-400 mt-1 italic">* 指明用户是否被认为是活跃的。以反选代替删除帐号。</p>
+                </div>
+            </form>
+
+            <div class="p-8 bg-slate-50 flex justify-end space-x-3">
+                <button onclick="toggleModal('user-modal')" class="px-6 py-2 text-xs font-bold text-slate-400">取消</button>
+                <button onclick="submitUserForm()" class="px-8 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
+                    确认保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'js/api_client.js' %}"></script>
+    <script>
+
+        const ApiClient = new window.ApiClient({ namespace: 'workflow' });
+
+        // 修改 renderTree 之前的调用逻辑
+        async function initDeptTree() {
+            const response = await ApiClient.get('api/dept-tree/');
+            // console.log('API 响应:', response); // 调试输出
+            if(response.status === 'Success') {
+                const root = document.getElementById('dept-tree-root');
+                root.innerHTML = ''; // 清空
+                // console.log('部门树数据:', response.data); // 调试输出
+                renderTree(response.data, root);
+            }
+        }
+
+        // 初始化树
+        initDeptTree();
+
+        // 部门过滤
+        document.getElementById('dept-filter').addEventListener('input', function(e) {
+            const filterText = e.target.value.toLowerCase();
+            const treeRoot = document.getElementById('dept-tree-root');
+            const allNodes = treeRoot.querySelectorAll('.dept-node-item'); // 使用新 class
+
+            // 1. 先隐藏所有节点
+            allNodes.forEach(node => node.style.display = 'none');
+
+            // 2. 找出匹配的节点并显示它们及其所有父节点
+            allNodes.forEach(node => {
+                const nodeName = node.dataset.name.toLowerCase();
+                if (nodeName.includes(filterText)) {
+                    // 显示当前匹配的节点
+                    node.style.display = 'block';
+                    
+                    // 递归显示所有父节点
+                    let parent = node.parentElement.closest('.dept-node-item');
+                    while(parent) {
+                        parent.style.display = 'block';
+                        parent = parent.parentElement.closest('.dept-node-item');
+                    }
+                }
+            });
+        });
+
+        // 递归渲染函数
+        function renderTree(nodes, container, level = 0) {
+            nodes.forEach(node => {
+                const item = document.createElement('div');
+                // 添加一个唯一的 class 和 data-name 属性用于搜索
+                item.className = `dept-node-item relative ${level > 0 ? 'ml-4 mt-2' : ''}`;
+                item.dataset.name = node.name;
+                
+                const content = `
+                    <div class="flex items-center justify-between p-2 rounded-xl hover:bg-indigo-50 cursor-pointer transition-all group">
+                    <div class="flex items-center p-2 rounded-xl hover:bg-indigo-50 cursor-pointer transition-all group" onclick="showDetail('${node.name}', '${node.code}', '${node.id}','${node.manager}')">
+                        <i class="fas ${node.children ? 'fa-folder-open text-indigo-400' : 'fa-file text-slate-300'} mr-2 text-[10px]"></i>
+                        <span class="text-xs font-semibold text-slate-600 group-hover:text-indigo-600">${node.name}</span>
+                    </div>
+                    <div class="group-hover:flex items-center space-x-2">
+                        <button onclick="openEditDeptModal(${JSON.stringify(node).replace(/"/g, '&quot;')})" 
+                                class="text-slate-400 hover:text-indigo-600 p-1">
+                            <i class="fas fa-edit text-[10px]"></i>
+                        </button>
+                    </div>
+                    </div>
+                    <div id="child-${node.id}" class="${node.children ? 'tree-line ml-2' : ''}"></div>
+                `;
+                item.innerHTML = content;
+                container.appendChild(item);
+
+                if (node.children) {
+                    renderTree(node.children, item.querySelector(`#child-${node.id}`), level + 1);
+                }
+            });
+        }
+
+
+        // 修改详情展示逻辑
+        async function showDetail(name, code, id, manager) {
+            currentSelectedDeptId = id; // 记录当前查看的部门ID
+            document.getElementById('detail-name').innerText = name;
+            document.getElementById('detail-code').innerText = code;
+            document.getElementById('dept_manager').innerText = manager;
+            document.getElementById('member-list').innerHTML = '<p class="text-sm text-slate-400">正在加载成员信息...</p>';
+            // 获取部门成员
+            const response = await ApiClient.get(`api/dept/${id}/members/`);
+            if (response.status !== 'Success') {
+                alert('获取成员信息失败');
+                return;
+            }
+            if (Object.keys(response.data).length === 0) {
+                document.getElementById('member-list').innerHTML = '<p class="text-sm text-slate-400">该部门暂无成员信息</p>';
+                return;
+            }
+            // console.log(`成员信息 for dept ${id}:`, response.data); // 调试输出成员信息
+            const memberList = document.getElementById('member-list');
+            memberList.innerHTML = response.data.map(m => `
+                <div class="group relative flex items-center p-4 border rounded-2xl bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
+                    <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold text-indigo-600 mr-3 border">
+                        ${m.username[0].toUpperCase()}
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-700">${m.username}</p>
+                        <p class="text-[10px] text-slate-400">职位: ${m.job_title || '未设置'}</p>
+                        <p class="text-[10px] text-slate-400">上级: ${m.superior || "无"}</p>
+                    </div>
+                    <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick='openEditUserModal(${JSON.stringify(m).replace(/'/g, "&apos;")})' class="w-6 h-6 bg-white text-slate-500 hover:text-indigo-600 rounded-md flex items-center justify-center shadow-sm border">
+                            <i class="fas fa-edit text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 弹窗控制
+        function toggleModal(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('hidden');
+        }
+
+        let currentEditingId = null; // 用于记录当前正在修改的部门 ID
+        let currentEditingUserId = null; // 用于记录当前正在修改的用户 ID
+        let currentSelectedDeptId = null; // 全局变量，记录当前选中的部门ID
+
+        // 打开“新增”模式
+        async function openAddDeptModal() {
+            currentEditingId = null; // 重置
+            document.getElementById('dept-form').reset();
+            document.querySelector('#dept-modal h3').innerText = '新增部门';
+            await prepareDeptSelect(); // 加载下拉框
+            toggleModal('dept-modal');
+        }
+
+        // 打开“修改”模式
+        async function openEditDeptModal(node) {
+            currentEditingId = node.id;
+            document.querySelector('#dept-modal h3').innerText = '修改部门';
+            
+            await prepareDeptSelect(); // 加载下拉框
+            
+            // 自动填充表单
+            const form = document.getElementById('dept-form');
+            form.name.value = node.name;
+            form.dept_code.value = node.code;
+            // 设置父级（需排除自己，防止逻辑死循环）
+            form.parent.value = node.parent_id || ""; 
+            form.manager_role.value = node.manager_role || "";
+            toggleModal('dept-modal');
+        }
+
+        // 统一的提交逻辑
+        async function submitDeptForm() {
+            const form = document.getElementById('dept-form');
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+
+            // 根据是否有 currentEditingId 决定 URL 和 Method
+            const url = currentEditingId 
+                ? `api/dept/update/${currentEditingId}/` 
+                : 'api/dept/create/';
+
+            const response = await ApiClient.post(url, payload);
+            if (response.status === 'Success') {
+                alert(currentEditingId ? '更新成功' : '创建成功');
+                toggleModal('dept-modal');
+                initDeptTree(); // 刷新树
+            } else {
+                alert('操作失败: ' + response.message);
+            }
+        }
+
+        /**
+         * 准备“上级部门”下拉框数据
+         * 功能：从接口获取所有部门，并转为扁平列表填充到 Select 标签中
+         */
+        async function prepareDeptSelect() {
+            const select = document.getElementById('parent-dept-select');
+            if (!select) return;
+
+            try {
+                // 1. 获取最新的部门树数据（复用你已有的树接口）
+                const response = await ApiClient.get('api/dept-tree/');
+
+                if (response.status === 'Success') {
+                    // 2. 将嵌套的树结构扁平化，方便放入 <option>
+                    const flatList = flattenTree(response.data);
+                    // console.log('扁平化部门列表:', flatList); // 调试输出扁平化后的部门列表
+                    // 3. 构建 HTML
+                    let options = '<option value="">-- 无 (顶级部门) --</option>';
+                    
+                    flatList.forEach(dept => {
+                        // 修改模式下的保护逻辑：上级部门不能选自己
+                        const isDisabled = (currentEditingId && dept.id === currentEditingId) ? 'disabled' : '';
+                        const style = isDisabled ? 'color: #cbd5e1; background: #f8fafc;' : '';
+                        
+                        options += `<option value="${dept.id}" ${isDisabled} style="${style}">
+                            ${dept.name} ${isDisabled ? '(当前部门，不可选)' : ''}
+                        </option>`;
+                    });
+                    
+                    select.innerHTML = options;
+                }
+            
+                const responseRoles = await ApiClient.get('api/roles/');
+                const roleSelect = document.getElementById('manager-role-select');
+                if (responseRoles.status === 'Success' && roleSelect) {
+                    let roleOptions = '<option value="">-- 未设置 --</option>';
+                    responseRoles.data.forEach(role => {
+                        roleOptions += `<option value="${role.id}">${role.name}</option>`;
+                    });
+                    roleSelect.innerHTML = roleOptions;
+                }
+            } catch (err) {
+                console.error("加载上级部门下拉列表失败:", err);
+            }
+        }
+
+        /**
+         * 辅助函数：将树形结构转为扁平数组
+         */
+        function flattenTree(nodes, list = []) {
+            nodes.forEach(node => {
+                list.push({ id: node.id, name: node.name });
+                if (node.children && node.children.length > 0) {
+                    flattenTree(node.children, list);
+                }
+            });
+            return list;
+        }
+
+        async function initRoleList() {
+            const response = await ApiClient.get('api/roles/');
+            const container = document.getElementById('role-list-container');
+            if (response.status === 'Success') {
+                container.innerHTML = response.data.map(role => `
+                    <div class="flex items-center justify-between p-3 rounded-2xl border border-slate-50 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all group">
+                        <button onclick="openEditRoleModal(${role.id}, '${role.name}', '${role.role_code}','${role.is_active}')" 
+                            class="text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all p-1">
+                            <i class="fas fa-edit text-xs"></i>
+                        </button>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-indigo-600 transition-colors">
+                                <i class="fas fa-user-tag text-[10px]"></i>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-bold text-slate-700">${role.name}</p>
+                                <p class="text-[9px] font-mono text-slate-400 uppercase">${role.role_code}</p>
+                            </div>
+                        </div>
+                        <button onclick="deleteRole(${role.id})" 
+                            class="text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all p-1">
+                            <i class="fas fa-times-circle text-xs"></i>
+                        </button>
+                    </div>
+                `).join('');
+            }
+        }
+        // 页面加载完成后调用
+        document.addEventListener('DOMContentLoaded', () => {
+            initRoleList();
+        });
+
+        let currentEditingRoleId = null; // 全局变量，记录正在编辑的角色ID
+
+        // 1. 打开新建角色弹窗
+        function openRoleModal() {
+            currentEditingRoleId = null; // 重置 ID
+            document.getElementById('role-form').reset();
+            document.querySelector('#role-modal h3').innerText = '新建角色';
+            toggleModal('role-modal');
+        }
+
+        // 2. 打开修改角色弹窗
+        function openEditRoleModal(id, name, code, is_active) {
+            currentEditingRoleId = id;
+            document.querySelector('#role-modal h3').innerText = '修改角色';
+            // 回显数据到表单
+            const form = document.getElementById('role-form');
+            form.name.value = name;
+            form.role_code.value = code;
+            form.is_active.checked = (is_active === 'true' || is_active === true); // 兼容字符串和布尔值
+            toggleModal('role-modal');
+        }
+
+        // 3. 统一的提交逻辑（支持新建和更新）
+        async function submitRoleForm() {
+            const form = document.getElementById('role-form');
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.is_active = form.is_active.checked; // 显式设置布尔值
+
+            // 根据是否有 ID 决定调用哪个接口
+            const url = currentEditingRoleId 
+                ? `api/roles/update/${currentEditingRoleId}/` 
+                : 'api/roles/create/';
+
+            const response = await ApiClient.post(url, payload);
+            if (response.status === 'Success') {
+                toggleModal('role-modal');
+                initRoleList(); // 刷新右侧角色列表
+                // 如果正在编辑部门，顺便刷新部门弹窗里的角色下拉框
+                if (document.getElementById('dept-modal').classList.contains('hidden') === false) {
+                    prepareDeptSelect(); 
+                }
+                alert(currentEditingRoleId ? '角色更新成功' : '角色创建成功');
+            } else {
+                alert("操作失败: " + response.message);
+            }
+        }
+
+        // 4. 删除角色
+        async function deleteRole(roleId) {
+            if (!confirm('确定要删除该角色吗？这可能影响已有的审批流配置。')) return;
+            const response = await ApiClient.post(`api/roles/delete/${roleId}/`);
+            if (response.status === 'Success') {
+                initRoleList();
+            } else {
+                alert("无法删除: " + response.message);
+            }
+        }
+
+        // 打开新增用户弹窗
+        function openAddUserModal() {
+            currentEditingUserId = null;
+            document.getElementById('user-form').reset();
+            document.querySelector('#user-modal h3').innerText = '新增员工';
+            document.querySelector('input[name="username"]').required = true; // 新增时用户名必填
+            document.querySelector('input[name="email"]').required = true; // 新增时邮箱必填
+            // document.querySelector('input[name="password"]').required = true; // 新增时密码必填
+            prepareUserForm(); // 准备表单下拉框
+            toggleModal('user-modal');
+        }
+
+        // 打开修改用户弹窗
+        async function openEditUserModal(user) {
+            currentEditingUserId = user.user_id;
+            document.getElementById('user-form').reset();
+            document.querySelector('#user-modal h3').innerText = '修改员工';
+            document.querySelector('input[name="password"]').required = false; // 修改时密码选填
+
+            await prepareUserForm(); // 先加载下拉框
+
+            // 填充表单
+            const form = document.getElementById('user-form');
+            form.user_id.value = user.user_id;
+            form.username.value = user.username;
+            form.first_name.value = user.first_name;
+            form.last_name.value = user.last_name;
+            form.email.value = user.email;
+            form.job_title.value = user.job_title;
+            form.is_active.checked = user.is_active;
+            
+            // 设置下拉框的值
+            form.department.value = user.department_id;
+            form.superior.value = user.superior_id || "";
+            
+            // 设置多选角色
+            const roleSelect = form.roles;
+            user.roles.forEach(roleId => {
+                const option = Array.from(roleSelect.options).find(opt => opt.value == roleId);
+                if (option) option.selected = true;
+            });
+
+            toggleModal('user-modal');
+        }
+
+        // 准备用户表单的下拉框数据
+        async function prepareUserForm() {
+            const deptSelect = document.getElementById('user-dept-select');
+            const superiorSelect = document.getElementById('user-superior-select');
+            const rolesSelect = document.getElementById('user-roles-select');
+
+            try {
+                // 获取部门、用户和角色
+                const [deptRes, userRes, roleRes] = await Promise.all([
+                    ApiClient.get('api/dept-tree/'),
+                    ApiClient.get('api/users/'),
+                    ApiClient.get('api/roles/')
+                ]);
+
+                // 填充部门下拉框
+                if (deptRes.status === 'Success') {
+                    const flatDepts = flattenTree(deptRes.data);
+                    deptSelect.innerHTML = flatDepts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+                    // 如果当前有选中的部门，则自动选中
+                    if (currentSelectedDeptId) {
+                        deptSelect.value = currentSelectedDeptId;
+                    }
+                }
+
+                // 填充上级下拉框
+                if (userRes.status === 'Success') {
+                    superiorSelect.innerHTML = '<option value="">-- 无 --</option>' + 
+                        userRes.data.map(u => `<option value="${u.user__id}">${u.user__username}</option>`).join('');
+                }
+
+                // 填充角色下拉框
+                if (roleRes.status === 'Success') {
+                    rolesSelect.innerHTML = roleRes.data.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+                }
+
+            } catch (error) {
+                console.error("加载用户表单数据失败:", error);
+                alert("加载基础数据失败，请检查网络或联系管理员。");
+            }
+        }
+
+        // 提交用户表单
+        async function submitUserForm() {
+            const form = document.getElementById('user-form');
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            
+            // 特别处理多选的 roles 和 checkbox
+            payload.roles = Array.from(form.roles.selectedOptions).map(opt => opt.value);
+            payload.is_active = form.is_active.checked;
+
+            const url = currentEditingUserId
+                ? `api/user/update/${currentEditingUserId}/`
+                : 'api/user/create/';
+
+            try {
+                const response = await ApiClient.post(url, payload);
+                if (response.status === 'Success') {
+                    alert(currentEditingUserId ? '用户更新成功！' : '用户创建成功！');
+                    toggleModal('user-modal');
+                    // 刷新当前部门的成员列表
+                    if (currentSelectedDeptId) {
+                        const detailName = document.getElementById('detail-name').innerText;
+                        const detailCode = document.getElementById('detail-code').innerText;
+                        const deptManager = document.getElementById('dept_manager').innerText;
+                        showDetail(detailName, detailCode, currentSelectedDeptId, deptManager);
+                    }
+                } else {
+                    alert('操作失败: ' + response.message);
+                }
+            } catch (error) {
+                alert('请求出错: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

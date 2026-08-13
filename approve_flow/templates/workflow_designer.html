@@ -1,0 +1,1309 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>审批流程设计器 - Workflow Engine</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <script src="{% static 'js/Sortable.min.js' %}"></script>
+    <link href="{% static 'plugins/fontawesome/css/all.min.css' %}" rel="stylesheet">
+    <style>
+        .ghost { opacity: 0.4; background: #eef2ff; border: 2px dashed #6366f1; }
+        .drag-handle { cursor: grab; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        
+        /* 容器样式优化 */
+        .parallel-container {
+            border: 2px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 1.5rem;
+            padding: 2rem 1.5rem 1.5rem 1.5rem;
+            width: 100%;
+            transition: all 0.2s ease;
+            position: relative;
+            margin-bottom: 2.5rem;
+            pointer-events: auto;
+        }
+        .parallel-container.active { border-color: #6366f1; box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.1), 0 8px 10px -6px rgba(99, 102, 241, 0.1); }
+        
+        /* 引导连线 */
+        .parallel-container:not(:last-child)::after {
+            content: ''; position: absolute; bottom: -2.5rem; left: 50%;
+            width: 2px; height: 2.5rem; background: #e2e8f0; z-index: -1;
+        }
+
+        .level-badge {
+            position: absolute; top: -14px; left: 20px;
+            background: #4f46e5; color: white;
+            font-size: 10px; padding: 2px 10px; border-radius: 999px; font-weight: 800;
+            letter-spacing: 0.05em; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
+        }
+
+        .slot-area {
+            display: flex; flex-wrap: wrap; 
+            gap: 1rem; min-height: 100px;
+            justify-content: center; align-items: center;
+            padding: 1rem; border: 2px dashed #f1f5f9;
+            border-radius: 1rem; background: #fcfdfe;
+            position: relative;
+            z-index: 10; /* 提升槽位层级 */
+            min-height: 120px !important; /* 确保有足够的点击区域 */
+            pointer-events: auto;
+        }
+
+        /* 默认展开状态 */
+        #sidebar {
+            width: 320px; /* 展开宽度 */
+        }
+
+        /* 标题样式 */
+        .sidebar-title {
+            writing-mode: horizontal-tb;
+            white-space: nowrap;
+        }
+
+        /* --- 收缩状态样式 --- */
+
+        /* 1. 缩小侧边栏宽度并调整内边距 */
+        #sidebar.collapsed {
+            width: 60px !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+
+        /* 2. 隐藏搜索框和列表 */
+        #sidebar.collapsed .hide-on-collapse {
+            display: none !important;
+        }
+
+        /* 3. 纵向标题核心逻辑 */
+        #sidebar.collapsed .sidebar-title {
+            writing-mode: vertical-rl; /* 文字直排 */
+            text-orientation: mixed;   /* 确保中文字符不旋转，英文字符顺时针旋转90度 */
+            letter-spacing: 0.3em;      /* 垂直排列时增加字间距更美观 */
+            font-size: 14px;            /* 适当放大一点方便阅读 */
+            color: #6366f1;             /* 收缩时变色（indigo-500），增加视觉引导 */
+            margin-top: 20px;
+            margin-bottom: 0;
+            /* --- 关键修改点 --- */
+            margin: auto 0;           /* 水平居中 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 动画过渡 */
+        #sidebar, .sidebar-title, .hide-on-collapse {
+            transition: all 0.3s ease-in-out;
+        }
+
+        .workflow-item { 
+            flex-shrink: 0;        /* 防止组件被压缩变形 */
+            max-width: 100%;       /* 最大宽度不超过容器 */
+            min-width: 140px; 
+            position: relative; 
+            /* 默认状态：轻微阴影和清晰边框 */
+            background: #ffffff;
+            border: 2px solid #f1f5f9;
+            border-radius: 1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        /* 重点：Hover 状态优化 */
+        .workflow-item:hover {
+            /* 1. 更加立体且带有品牌色倾向的阴影 (Indigo) */
+            box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.15), 
+                        0 8px 10px -6px rgba(99, 102, 241, 0.1);
+
+            /* 2. 向上浮动感 */
+            transform: translateY(-5px);
+            
+            /* 3. 边框颜色加深，使其轮廓清晰 */
+            border-color: #6366f1;
+            
+            /* 4. 轻微背景渐变感 (可选) */
+            background: linear-gradient(to bottom right, #ffffff, #f8faff);
+        }
+
+        /* 5. 联动优化：当 Hover 节点时，内部的图标或文字稍微加深颜色 */
+        .workflow-item:hover .text-slate-700 {
+            color: #4f46e5; /* 品牌色 */
+        }
+
+        /* 6. 激活/选中状态 (用于 selectNode 时) */
+        .workflow-item.node-active {
+            border-color: #6366f1;
+            background-color: #eef2ff;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+
+        .order-badge {
+            position: absolute; top: -6px; right: -6px;
+            background: #f59e0b; color: white;
+            width: 20px; height: 20px; border-radius: 50%;
+            font-size: 10px; display: flex; align-items: center; justify-content: center;
+            border: 2px solid white; font-weight: bold;
+        }
+
+        /* 单独删除按钮样式 */
+        .item-del-btn {
+            position: absolute; bottom: -5px; right: -5px;
+            background: #ef4444; color: white; width: 18px; height: 18px;
+            border-radius: 50%; font-size: 10px; display: none;
+            align-items: center; justify-content: center; cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .workflow-item:hover .item-del-btn { display: flex; }
+
+        .node-active { border-color: #6366f1 !important; transform: translateY(-2px); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col overflow-hidden font-sans">
+
+    <header class="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm z-30">
+        <div class="flex items-center gap-4 flex-1 mr-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-100"><i class="fas fa-project-diagram"></i></div>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight whitespace-nowrap">审批流程编辑</h1>
+            </div>
+            {% if is_new %}
+            <div class="flex flex-col gap-1">
+                <input type="text" id="new-flow-code" placeholder="流程CODE" 
+                    onblur="checkCodeUnique(this.value)"
+                    class="bg-white rounded-xl px-4 py-2 text-sm font-mono border shadow-sm w-32 uppercase text-indigo-600 outline-none">
+                <span id="code-check-msg" class="text-[10px] font-bold px-2"></span>
+            </div>
+            {% else %}
+            <div class="flex items-center gap-4 bg-indigo-50/50 px-4 py-2 rounded-2xl border border-indigo-100">
+                <span class="font-bold text-indigo-900">{{ workflow.name }}</span>
+                <span class="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-lg font-mono font-bold">{{ workflow.code }}</span>
+            </div>
+            {% endif %}
+            <div class="flex gap-3 bg-slate-50 p-1 rounded-2xl border">
+                <input type="text" id="flow_name" placeholder="输入流程名称" class="bg-transparent px-4 py-2 text-sm focus:outline-none w-48 font-bold text-slate-700" value="{{ workflow.name }}">
+            </div>
+            <div class="flex gap-3 p-1 rounded-5xl flex-1">
+                <textarea id="flow_description" rows="1" class="w-full rounded-lg border-slate-200 p-2 text-sm border flex-grow overflow-hidden whitespace-nowrap" placeholder="输入流程描述...">{{ workflow.description }}</textarea>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border">
+                    <input type="checkbox" id="remove_duplicate_approvers" {% if workflow.remove_duplicate_approvers %}checked{% endif %} class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                    <label for="remove_duplicate_approvers" class="text-xs font-bold text-slate-600">去重审批人</label>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border">
+                    <input type="checkbox" id="is_active" {% if workflow.is_active %}checked{% endif %} class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                    <label for="is_active" class="text-xs font-bold text-slate-600">激活</label>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="saveToBackend()" class="px-8 py-2.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>保存并同步
+            </button>        
+            <button onclick="goto_TestCenter()" class="px-6 py-2.5 bg-blue-200 text-slate-700 border border-slate-200 rounded-2xl text-sm font-bold hover:bg-slate-100 transition-all shadow-lg shadow-slate-100 active:scale-95">
+                <i class="fas fa-vial mr-2"></i>前往测试中心
+            </button>
+        </div>
+   </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <aside id="sidebar" class="relative p-9 bg-white border-r flex flex-col shadow-sm z-20 transition-all duration-300 ease-in-out overflow-y-auto custom-scrollbar">
+            <button onclick="toggleSidebar()" class="absolute -right-3 top-10 w-6 h-6 bg-white border shadow-sm rounded-full flex items-center justify-center z-30 hover:text-indigo-600 transition-all">
+                <i id="toggle-icon" class="fas fa-chevron-left text-[10px]"></i>
+            </button>     
+            <div id="sidebar-content" class="flex flex-row w-full whitespace-nowrap">                         
+                <div class="flex flex-col w-full">
+                    <h2 class="sidebar-title text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 transition-all duration-300">
+                        流程导航
+                    </h2>
+                    <div id="workflow-search-container" class="relative mb-6">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-slate-300 text-xs"></i>
+                        </span>
+                        <input type="text" 
+                        id="workflow-search" 
+                        onchange="filterWorkflows()"
+                        placeholder="输入流程名称搜索..." 
+                        class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-all">
+                    </div>
+                    <div id="workflow-list" class="space-y-3 custom-scrollbar mb-4"></div>
+                </div>
+            </div>  
+        </aside>
+        <div class="m-4 p-6 border border-slate-200 rounded-3xl bg-white shadow-sm z-10 flex flex-col">
+            <div class="p-6 flex-1 overflow-y-auto custom-scrollbar flex-grow">
+                <button onclick="navigateToNewDesign()" class="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400 hover:border-indigo-400 hover:text-indigo-600 transition-all">
+                    <i class="fas fa-plus-circle mr-2"></i>新建审批流
+                </button>
+                <div class="mb-8">
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">1. 结构容器 (Level)</h2>
+                    <div id="container-tool">
+                        <div class="node-tool flex items-center p-4 border-2 border-slate-50 rounded-2xl cursor-move bg-white hover:bg-indigo-200 hover:shadow-md hover:border-indigo-400 transition-all group" data-type="container">
+                            <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center mr-3 group-hover:bg-orange-500 group-hover:text-green-600 transition-all">
+                                <i class="fas fa-layer-group"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-slate-700">层级容器</p>
+                                <p class="text-[10px] text-slate-400 italic">串/并连审批载体</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">2. 审批组件 (Item)</h2>
+                    <div id="item-tool" class="space-y-3">
+                        <div class="node-tool flex items-center p-4 border-2 border-slate-50 rounded-2xl cursor-move bg-white hover:bg-indigo-200 hover:border-indigo-400 transition-all group" data-type="superior" data-name="直接主管">
+                            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mr-3 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <p class="text-sm font-bold text-slate-700">主管审批</p>
+                        </div>
+                        <div class="node-tool flex items-center p-4 border-2 border-slate-50 rounded-2xl cursor-move bg-white hover:bg-indigo-200 hover:border-indigo-400 transition-all group" data-type="dept_manager" data-name="部门经理">
+                            <div class="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mr-3 group-hover:bg-emerald-600 group-hover:text-green-600 transition-all">
+                                <i class="fas fa-sitemap"></i>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="text-sm font-bold text-slate-700">部门经理</p>
+                                <p class="text-[10px] text-slate-400">按所属部门负责人审批</p>
+                            </div>
+                        </div>                        
+                        <div class="node-tool flex items-center p-4 border-2 border-slate-50 rounded-2xl cursor-move bg-white hover:bg-indigo-200 hover:border-indigo-400 transition-all group" data-type="role" data-name="指定角色">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mr-3 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                <i class="fas fa-users-cog"></i>
+                            </div>
+                            <p class="text-sm font-bold text-slate-700">角色审批</p>
+                        </div>
+                        <div class="node-tool flex items-center p-4 border-2 border-slate-50 rounded-2xl cursor-move bg-white hover:bg-indigo-200 hover:border-indigo-400 transition-all group" data-type="user" data-name="指定人员">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mr-3 group-hover:bg-emerald-600 group-hover:text-green-600 transition-all">
+                                <i class="fas fa-user-check"></i>
+                            </div>
+                            <p class="text-sm font-bold text-slate-700">人员审批</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <main class="flex-1 p-12 overflow-y-auto bg-slate-50 custom-scrollbar relative">
+            <div class="max-w-3xl mx-auto flex flex-col items-center min-h-full pb-40">
+                <div id="start-node" class="bg-green-500 text-black px-10 py-2.5 rounded-full text-[10px] font-black tracking-[0.2em] mb-12 shadow-xl border-4 border-white">START</div>
+                
+                <div id="canvas" class="w-full flex flex-col items-center">
+                    <div id="empty-hint" class="py-20 text-center opacity-30 select-none">
+                        <i class="fas fa-plus-square text-6xl mb-4"></i>
+                        <p class="text-sm font-bold">拖入容器开启流程设计</p>
+                    </div>
+                </div>
+
+                <div id="end-node" class="bg-red-500 text-black px-10 py-2.5 rounded-full text-[10px] font-black tracking-[0.2em] shadow-xl border-4 border-white mt-10">END</div>
+            </div>
+        </main>
+
+        <aside class="w-96 bg-white border-l p-8 overflow-y-auto shadow-2xl z-20">
+            <div id="no-select-msg" class="h-full flex flex-col items-center justify-center text-slate-300 text-center">
+                <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 border-2 border-dashed border-slate-200">
+                    <i class="fas fa-mouse-pointer text-3xl"></i>
+                </div>
+                <p class="text-xs font-bold uppercase tracking-widest leading-loose">请选择画布中的元素<br>进行高级配置</p>
+            </div>
+
+            <div id="container-panel" class="hidden space-y-8 animate-fade-in">
+                <div class="border-b pb-4 flex justify-between items-end">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">环节属性</h2>
+                        <span class="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded">Container</span>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest" id="display-step-id">step_id</p>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">Level:</label>
+                        <input type="number" id="step-level" placeholder=0 class="w-full bg-slate-50 rounded-2xl p-1 text-sm font-mono outline-none border-2 border-transparent focus:border-indigo-500">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">Order:</label>
+                        <input type="number" id="step-order" placeholder=0 class="w-full bg-slate-50 rounded-2xl p-1 text-sm font-mono outline-none border-2 border-transparent focus:border-indigo-500">
+                    </div>
+                </div>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">环节显示名称</label>
+                        <input type="text" id="step-name-input" placeholder="输入审批环节名称" 
+                            class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 text-sm font-bold outline-none transition-all">
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border-2 border-transparent hover:border-indigo-100 transition-all cursor-pointer">
+                        <input type="checkbox" id="step-superior-approve" disabled class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer">
+                        <label for="step-superior-approve" class="text-sm font-bold text-slate-600 cursor-pointer select-none">
+                            该层级强制由直接主管审批
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border-2 border-transparent hover:border-indigo-100 transition-all cursor-pointer">
+                        <input type="checkbox" id="step-dept-manager-approve" disabled class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer">
+                        <label for="step-dept-manager-approve" class="text-sm font-bold text-slate-600 cursor-pointer select-none">
+                            该层级由部门经理审批
+                        </label>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">审批模式 (Level Mode)</label>
+                        <select id="step-mode" class="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 text-sm outline-none font-bold">
+                            <option value="ANY">或签 (任一通过)</option>
+                            <option value="ALL">会签 (全员通过)</option>
+                            <option value="NOTIFY">仅通知 (无需审批)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border-2 border-transparent hover:border-indigo-100 transition-all cursor-pointer">
+                        <input type="checkbox" id="step-amount_control" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer">
+                        <label for="step-amount_control" class="text-sm font-bold text-slate-600 cursor-pointer select-none">
+                            金额审批控制
+                        </label>
+                    </div>                        
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">金额下限</label>
+                            <input type="number" id="step-min" class="w-full bg-slate-50 rounded-2xl p-4 text-sm font-mono outline-none border-2 border-transparent focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">金额上限</label>
+                            <input type="number" id="step-max" placeholder="∞" class="w-full bg-slate-50 rounded-2xl p-4 text-sm font-mono outline-none border-2 border-transparent focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase block mb-2">权限标签 (Tag)</label>
+                        <input type="text" id="step-tag" class="w-full bg-slate-50 rounded-2xl p-4 text-sm font-mono outline-none border-2 border-transparent focus:border-indigo-500" placeholder="e.g. finance_dept">
+                    </div>
+                </div>
+                
+                <div class="pt-6">
+                    <button onclick="deleteContainer()" class="w-full py-4 text-rose-500 text-[10px] font-black uppercase tracking-widest border-2 border-rose-50 rounded-2xl hover:bg-rose-50 transition-all">
+                        <i class="fas fa-trash-alt mr-2"></i>移除整个审批环节
+                    </button>
+                </div>
+            </div>
+
+            <div id="node-panel" class="hidden space-y-8 animate-fade-in">
+                <div class="border-b pb-4 flex justify-between items-end">
+                    <div>
+                        <h2 class="text-xl font-bold text-orange-600">审批人配置</h2>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest" id="display-order-text">Order 1</p>
+                    </div>
+                </div>
+                <div id="node-role-cfg" class="hidden">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-3">指定审批角色</label>
+                    <select id="node-roles" class="w-full bg-slate-50 border-none rounded-2xl p-3 text-xs h-48 custom-scrollbar focus:ring-2 focus:ring-orange-500" multiple></select>
+                </div>
+                <div id="node-user-cfg" class="hidden">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-3">指定审批人员</label>
+                    <select id="node-users" class="w-full bg-slate-50 border-none rounded-2xl p-3 text-xs h-48 custom-scrollbar focus:ring-2 focus:ring-orange-500" multiple></select>
+                </div>
+                <div id="node-superior-msg" class="hidden p-6 bg-purple-50 rounded-2xl border border-purple-100">
+                    <div class="flex items-center gap-3 text-purple-700 mb-2">
+                        <i class="fas fa-info-circle text-lg"></i>
+                        <span class="text-sm font-bold tracking-tight">主管审批模式</span>
+                    </div>
+                    <p class="text-[11px] text-purple-500 leading-relaxed font-medium italic">此节点将自动获取当前申请人的“直接上级”进行审批流转。</p>
+                </div>
+                <div id="node-dept-manager-msg" class="hidden p-6 bg-purple-50 rounded-2xl border border-purple-100">
+                    <div class="flex items-center gap-3 text-purple-700 mb-2">
+                        <i class="fas fa-info-circle text-lg"></i>
+                        <span class="text-sm font-bold tracking-tight">部门经理审批模式</span>
+                    </div>
+                    <p class="text-[11px] text-purple-500 leading-relaxed font-medium italic">此节点将自动获取当前申请人的部门经理进行审批流转。</p>
+                </div>
+            </div>
+
+            <div id="change-history-panel" class="mt-8 pt-8 border-t space-y-4 hidden">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider">更改历史</h3>
+                    <span id="history-count" class="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <div id="change-history-list" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+                    <!-- 更改记录将动态插入此处 -->
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <style>
+        .workflow-item-container:hover .workflow-delete-btn {
+            display: flex;
+        }
+    </style>
+
+    <script src="{% static 'js/api_client.js' %}"></script>
+    <script>
+        const currentWorkflowId = "{{ workflow.id|default:0 }}";
+        const isNewMode = {{ is_new|yesno:"true,false" }};
+        if (isNewMode) {
+            toggleSidebar(); // 页面加载时默认收起侧边栏，提升初始视觉聚焦
+        }
+        let nodeCounter = 0;
+        let activeContainerId = null;
+        let activeNodeId = null;
+        // 存储从服务器加载的初始状态（不可变，用于对比和重置）
+        let originalWorkflowData = []; 
+
+        // 存储当前画布上的实时状态（随操作动态更新）
+        let currentWorkflowData = [];
+
+        // 存储工作流状态的历史记录
+        let workflowHistory = [];
+
+        // 存储发生过变动的 step_id 集合（用于前端性能优化）
+        let changedStepIds = [];
+
+        /**
+        * 生成一个以字母开头的随机 ID (适合 HTML id 属性)
+        * @param {number} length 随机部分的长度
+        */
+        function generateSimpleId(length = 8) {
+            return 'id_' + Math.random().toString(36).substr(2, length);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('toggle-icon');
+            const searchContainer = document.getElementById('workflow-search-container');
+            const workflowList = document.getElementById('workflow-list');
+
+            sidebar.classList.toggle('collapsed');
+            
+            if (sidebar.classList.contains('collapsed')) {
+                workflowList.classList.add('hidden'); // 隐藏流程列表
+                searchContainer.classList.add('hidden'); // 隐藏搜索框
+                icon.classList.replace('fa-chevron-left', 'fa-chevron-right');
+            } else {
+                workflowList.classList.remove('hidden'); // 显示流程列表
+                searchContainer.classList.remove('hidden'); // 显示搜索框
+                icon.classList.replace('fa-chevron-right', 'fa-chevron-left');
+            }
+        }
+
+        function filterWorkflows() {
+            // 获取搜索关键词并转为小写
+            const input = document.getElementById('workflow-search');
+            const filter = input.value.toLowerCase();
+            
+            // 获取列表中所有的流程项
+            const workflowList = document.getElementById('workflow-list');
+
+            // 遍历筛选
+            for (let i = 0; i < workflowList.children.length; i++) {
+                const item = workflowList.children[i];
+                // 建议在生成列表时给每个 item 加上 data-name 属性，或者直接取 innerText
+                const name = item.getAttribute('data-name') || item.innerText;
+                
+                if (name.toLowerCase().indexOf(filter) > -1) {
+                    item.style.display = ""; // 显示
+                    item.classList.remove('hidden'); // 保持布局
+                } else {
+                    item.style.display = "none"; // 隐藏
+                    item.classList.add('hidden'); // 移除布局
+                }
+            }
+        }
+
+        //通过 AJAX 实现“编码唯一性实时校验”功能
+        async function checkCodeUnique(code) {
+            const msgEl = document.getElementById('code-check-msg');
+            const saveBtn = document.querySelector('button[onclick="saveToBackend()"]');
+            
+            if (!code || code.trim() === "") {
+                msgEl.innerText = "";
+                return;
+            }
+
+            try {
+                // 请求后端校验接口
+                const res = await ApiClient.get(`check_code/?code=${code.trim().toUpperCase()}`);
+                const data = res.data || { available: false };
+                
+                if (data.available) {
+                    msgEl.innerText = "✓ 编码可用";
+                    msgEl.className = "text-[10px] font-bold px-2 text-emerald-500 animate-pulse";
+                    saveBtn.disabled = false;
+                    saveBtn.style.opacity = "1";
+                } else {
+                    msgEl.innerText = "✗ 编码已存在";
+                    msgEl.className = "text-[10px] font-bold px-2 text-rose-500";
+                    // 禁用保存按钮，防止强制提交
+                    saveBtn.disabled = true;
+                    saveBtn.style.opacity = "0.5";
+                    saveBtn.title = "编码冲突，无法保存";
+                }
+            } catch (err) {
+                console.error("校验失败:", err);
+            }
+        }
+
+        // 在以下位置调用 captureChanges():
+        // 1. Sortable 的 onUpdate 和 onAdd 回调中
+        // 2. 属性面板的 input/change 事件监听器中
+        // 3. deleteItem 或 deleteContainer 函数中
+        function captureChanges(changeDescription) {
+            // 保存当前状态的深拷贝到历史记录
+            workflowHistory.push({
+                data: JSON.parse(JSON.stringify(currentWorkflowData)),
+                description: changeDescription,
+                timestamp: new Date()
+            });
+
+            let new_data= {};
+            //console.log(`Captured change - Step ID: ${stepId},node ID: ${nodeId}, Type: ${changeType}`); // 调试输出，查看捕获的变动详情
+            flow_code = document.getElementById('new-flow-code')?.value || "{{ workflow.code|default:'' }}";
+            flow_name = document.getElementById('flow_name')?.value || "{{ workflow.name|default:'' }}";
+            flow_description = document.getElementById('flow_description')?.value || "{{ workflow.description|default:'' }}";
+            remove_duplicate_approvers = document.getElementById('remove_duplicate_approvers')?.checked || false;
+            is_active = document.getElementById('is_active')?.checked || false;
+            new_data['flow_code'] = flow_code;
+            new_data['flow_name'] = flow_name;
+            new_data['flow_description'] = flow_description;
+            new_data['remove_duplicate_approvers'] = remove_duplicate_approvers;
+            new_data['is_active'] = is_active;
+            let newSteps = [];
+            document.querySelectorAll('.parallel-container').forEach(cont => {
+                //console.log("Processing container:", JSON.stringify(cont.dataset)); // 调试输出，查看正在处理的容器元素
+                const levelParams = cont.dataset;
+                    newSteps.push({
+                        step_id: levelParams.stepid || null, 
+                        name: levelParams.name || "审批环节",
+                        level: parseInt(levelParams.level),
+                        order: parseInt(levelParams.order),
+                        approve_mode: levelParams.mode,
+                        amount_control: levelParams.amount_control === 'true',
+                        min_amount: levelParams.min || 0,
+                        max_amount: levelParams.max || null,
+                        permission_tag: levelParams.tag,
+                        superior_approve: levelParams.superior_approve=='true',
+                        dept_mgr_approve: levelParams.dept_mgr_approve=='true',
+                        roles: levelParams.roles,
+                        users: levelParams.users
+                    });
+            });
+            new_data['steps'] = newSteps;
+            currentWorkflowData = new_data;
+            // console.log("Captured workflow data:", JSON.stringify(new_data)); // 调试输出，查看捕获的数据格式
+            highlightChanges(); // 触发页面动态视觉反馈
+            updateChangeHistoryUI();
+            // console.log((activeContainerId || activeNodeId));
+            if (!activeContainerId && !activeNodeId) {
+                document.getElementById('no-select-msg').classList.remove('hidden');
+            }
+            else {
+                document.getElementById('no-select-msg').classList.add('hidden');
+            }
+        }
+
+        function updateChangeHistoryUI() {
+            const historyPanel = document.getElementById('change-history-panel');
+            const historyList = document.getElementById('change-history-list');
+            const historyCount = document.getElementById('history-count');
+
+            if (workflowHistory.length > 0) {
+                historyPanel.classList.remove('hidden');
+            } else {
+                historyPanel.classList.add('hidden');
+            }
+
+            historyCount.innerText = workflowHistory.length;
+            historyList.innerHTML = workflowHistory.map((record, index) => `
+                <div class="p-3 bg-slate-50 rounded-lg flex justify-between items-center text-xs group hover:bg-indigo-50">
+                    <div>
+                        <div class="font-bold text-slate-600">${record.description}</div>
+                        <div class="text-[10px] text-slate-400">${record.timestamp.toLocaleTimeString()}</div>
+                    </div>
+                    <button onclick="revertToState(${index})" class="group-hover:block bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-md hover:bg-indigo-600">
+                        <i class="fas fa-history mr-1"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function revertToState(index) {
+            if (index < 0 || index >= workflowHistory.length) return;
+
+            // 恢复数据状态
+            currentWorkflowData = JSON.parse(JSON.stringify(workflowHistory[index].data));
+            
+            // 截断历史记录到恢复点
+            workflowHistory.splice(index);
+
+            // 重新渲染画布和UI
+            renderCanvasFromData(currentWorkflowData.steps || []);
+            document.getElementById('flow_name').value = currentWorkflowData.flow_name || '';
+            document.getElementById('flow_description').value = currentWorkflowData.flow_description || '';
+            document.getElementById('remove_duplicate_approvers').checked = currentWorkflowData.remove_duplicate_approvers || false;
+            document.getElementById('is_active').checked = currentWorkflowData.is_active || false;
+
+            // 更新UI
+            updateChangeHistoryUI();
+            highlightChanges();
+            alert(`已恢复到版本 ${index + 1}`);
+        }
+
+
+        //动态改变 DOM 元素的样式（例如：给修改过的节点加一个“已修改”标签或改变边框颜色）
+        function highlightChanges() {
+            // 对比数据差异
+            for (fld in currentWorkflowData) {
+                if (currentWorkflowData[fld] !== originalWorkflowData[fld] && fld !== 'steps') { // 步骤单独处理
+                    console.log(`Field "${fld}" changed:`, { before: originalWorkflowData[fld], after: currentWorkflowData[fld] }); // 调试输出，查看发生变化的字段和前后值
+                    document.getElementById(fld).classList.add('border-amber-400', 'bg-amber-50');
+                }
+            }
+            current_steps=currentWorkflowData.steps || [];
+            original_steps=originalWorkflowData.steps || [];
+            current_steps.forEach(currentStep => {
+                // 寻找原始数据中 ID 相同的步骤
+                const originalStep = original_steps.find(s => s.id == currentStep.step_id);
+                
+                // 查找对应的 DOM 节点
+                const nodeEl = document.querySelector(`[data-db-id="${currentStep.step_id}"]`);
+                if (!nodeEl) return; // 新增节点暂不对比
+
+                // 对比关键属性是否发生变化
+                const isChanged = originalStep && (
+                    originalStep.level !== currentStep.level ||
+                    originalStep.order !== currentStep.order ||
+                    originalStep.approve_mode !== currentStep.approve_mode ||
+                    originalStep.name !== currentStep.name ||
+                    originalStep.dept_mgr_approve !== currentStep.dept_mgr_approve ||
+                    originalStep.superior_approve !== currentStep.superior_approve ||
+                    originalStep.amount_control !== currentStep.amount_control ||
+                    originalStep.min_amount !== currentStep.min_amount ||
+                    originalStep.max_amount !== currentStep.max_amount ||
+                    originalStep.permission_tag !== currentStep.permission_tag ||
+                    originalStep.roles !== currentStep.roles ||
+                    originalStep.users !== currentStep.users
+                );
+
+                if (isChanged) {
+                    nodeEl.classList.add('border-amber-400', 'bg-amber-50');
+                    if (!nodeEl.querySelector('.change-dot')) {
+                        const dot = document.createElement('div');
+                        dot.className = 'change-dot absolute -top-1 -left-1 w-3 h-3 bg-amber-500 rounded-full border-2 border-white';
+                        nodeEl.appendChild(dot);
+                    }
+                } else {
+                    nodeEl.classList.remove('border-amber-400', 'bg-amber-50');
+                    nodeEl.querySelector('.change-dot')?.remove();
+                }
+            });
+        }
+
+        // --- 修改拖拽组配置 ---
+        // 1. 容器工具箱（左侧）
+        new Sortable(document.getElementById('container-tool'), { 
+            group: { name: 'canvas_group', pull: 'clone', put: false }, 
+            sort: false 
+        });
+
+        // 2. 审批人工具箱（左侧）
+        new Sortable(document.getElementById('item-tool'), { 
+            group: { name: 'items_group', pull: 'clone', put: false }, 
+            sort: false 
+        });
+
+        // 3. 主画布（中间）- 仅接收容器
+        new Sortable(document.getElementById('canvas'), {
+            group: 'canvas_group', // 必须与 container-tool 的 group.name 一致
+            animation: 200,
+            draggable: ".parallel-container",
+            handle: ".cont-display-name", // 建议增加拖拽手柄
+            onAdd: (evt) => {
+                const id = `cont_${++nodeCounter}`;
+                initContainer(evt.item, id); 
+                refreshLevelOrders();
+            },
+            onUpdate: () => refreshLevelOrders()
+        });
+
+        const ApiClient = new window.ApiClient({ namespace: 'workflow/api/designer' });
+
+        // --- UI Utils ---
+        function updateEmptyState() {
+            const canvas = document.getElementById('canvas');
+            const hint = document.getElementById('empty-hint');
+            const containers = canvas.querySelectorAll('.parallel-container');
+            hint.style.display = containers.length === 0 ? 'block' : 'none';
+        }
+
+        function refreshLevelOrders() {
+            const containers = document.querySelectorAll('.parallel-container');
+            containers.forEach((cont, cIdx) => {
+                const level = cIdx + 1;
+                cont.dataset.level = level;
+                const order = cIdx + 1;
+                cont.dataset.order = order;
+                cont.dataset.name = cont.querySelector('.cont-display-name').innerText || `环节${level}`;
+
+                // --- 防御性检查：确保容器内的 UI 元素存在后再赋值 ---
+                const levelBadge = cont.querySelector('.level-badge');
+                if (levelBadge) levelBadge.innerText = `Level ${level}`;
+
+                const displayOrder = cont.querySelector('.cont-display-order');
+                if (displayOrder) displayOrder.innerText = `#${level}`;
+
+                // 刷新内部 Node
+                const nodes = cont.querySelectorAll('.workflow-item');
+                nodes.forEach((node, nIdx) => {
+                    const order = nIdx + 1;
+                    node.dataset.order = order;
+                    const orderBadge = node.querySelector('.order-badge');
+                    if (orderBadge) orderBadge.innerText = order;
+                });
+            });
+            updateEmptyState();
+        }
+
+        function updateContainerUI(el) {
+            const modes = { 'ANY': '或签', 'ALL': '会签', 'NOTIFY': '仅通知' };
+            el.querySelector('.view-mode').innerText = `模式: ${modes[el.dataset.mode] || '或签'}`;
+            el.querySelector('.view-tag').innerText = `TAG: ${el.dataset.tag || '无'}`;
+        }
+
+        // --- 核心渲染函数 ---
+        function initContainer(el, id, data = {}) {
+            el.id = id;
+            el.className = 'parallel-container animate-fade-in';
+            const name = data.name || "新审批环节";
+            el.innerHTML = `
+                <div class="level-badge">Level 0</div>
+                <div class="text-left">
+                    <span class="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">Step Name</span>
+                    <h3 class="text-sm font-bold text-slate-700 cont-display-name">${name}</h3>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Order</span>
+                    <p class="text-xs font-mono font-bold text-slate-500 cont-display-order">#0</p>
+                </div>
+                <div class="slot-area" id="${id}_slot"></div>
+                <div class="mt-4 flex justify-between text-[9px] text-slate-400 font-bold border-t pt-2">
+                    <span class="view-mode">模式: 或签</span><span class="view-tag uppercase font-mono">TAG: 无</span>
+                </div>`;
+            el.setAttribute('onclick', `selectContainer('${id}')`);
+            
+            Object.assign(el.dataset, { 
+                stepid: data.step_id || '',
+                level: data.level || 1,
+                order: data.order || 1,
+                name: data.name, 
+                mode: data.approve_mode || 'ANY', 
+                superior_approve: data.superior_approve || false,
+                dept_mgr_approve: data.dept_mgr_approve || false,
+                roles: data.roles || '',
+                users: data.users || '',
+                amount_control: data.amount_control,
+                min: data.min_amount || 0, 
+                max: data.max_amount || '', 
+                tag: data.permission_tag || '' 
+            });
+
+            // 关键修复点：确保 slot-area 在被添加到 DOM 后立即初始化
+            const slot = el.querySelector('.slot-area');
+            new Sortable(slot, {
+                group: 'items_group', // 必须与 item-tool 的 group.name 一致
+                animation: 200,
+                ghostClass: 'ghost',
+                onAdd: (evt) => {
+                    const nid = `node_${++nodeCounter}`;
+                    const type = evt.item.dataset.type; // 获取拖入组件的类型
+                    const name = evt.item.dataset.name;
+
+                    // 查找容器内现有的审批节点（注意此时 evt.item 已经由于 Sortable 机制被添加进 DOM 了）
+                    // 我们通过查询 data-type=type 且 ID 不是当前拖入 ID 的元素来判断,确保每种审批组件在同一层级只能存在一个。
+                    const existingType = el.querySelectorAll(`.workflow-item[data-type="${type}"]`);
+                    console.log(`检测${name}审批节点，当前数量: ${existingType.length}`);
+                    if (existingType.length >= 1) {
+                        // 如果数量超过1个，说明已经存在一个了
+                        alert(`环节 "${el.dataset.name}" 已存在${name}审批节点，每个层级只能有一个。`);
+                        // 移除刚刚拖入的重复节点
+                        evt.item.remove(); 
+                        return; // 终止后续初始化逻辑
+                    }                        
+                    // --- 核心自动化逻辑 ---
+                    if (type === 'superior') {                    
+                        // 1. 设置当前容器的 dataset
+                        el.dataset.superior_approve = 'true';
+                        
+                        // 2. 如果当前容器正处于选中状态，实时更新右侧面板的勾选框
+                        if (activeContainerId === el.id) {
+                            const cb = document.getElementById('step-superior-approve');
+                            if (cb) cb.checked = true;
+                        }
+                        
+                        // 3. (可选) 给用户一个微弱的视觉反馈
+                        console.log(`检测到主管审批组件，已自动激活层级 "${el.dataset.name}" 的主管模式`);
+                        captureChanges(`在 "${el.dataset.name}" 中添加主管审批`);
+                    }
+                    if (type === 'dept_manager') {                    
+                        // 1. 设置当前容器的 dataset
+                        el.dataset.dept_mgr_approve = 'true';
+                        
+                        // 2. 如果当前容器正处于选中状态，实时更新右侧面板的勾选框
+                        if (activeContainerId === el.id) {
+                            const cb = document.getElementById('step-dept-manager-approve');
+                            if (cb) cb.checked = true;
+                        }
+                        
+                        // 3. (可选) 给用户一个微弱的视觉反馈
+                        console.log(`检测到部门经理审批组件，已自动激活层级 "${el.dataset.name}" 的部门经理模式`);
+                        captureChanges(`在 "${el.dataset.name}" 中添加部门经理审批`);
+                    }
+                    initNode(evt.item, nid, {
+                        type: evt.item.dataset.type,
+                        name: evt.item.dataset.name
+                    });
+                    refreshLevelOrders();
+                },
+                onUpdate: () => {
+                    refreshLevelOrders();
+                    captureChanges("调整审批环节顺序");
+                }
+            });
+            //updateContainerUI(el);
+            selectContainer(id);
+        }
+
+
+        function initNode(el, id, data = {}) {
+            const type = data.type || el.dataset.type;
+            const name = data.name || el.dataset.name;
+            const icons = { 
+                'superior': '<i class="fas fa-user-tie"></i>', 
+                'dept_manager': '<i class="fas fa-sitemap"></i>',
+                'role': '<i class="fas fa-users-cog"></i>', 
+                'user': '<i class="fas fa-user-check"></i>' 
+            };
+            el.id = id;
+            el.className = 'workflow-item p-4 bg-white border-2 border-slate-100 rounded-2xl shadow-sm cursor-pointer hover:border-indigo-400 transition-all flex flex-col items-center';
+            el.innerHTML = `
+                <div class="order-badge">0</div>
+                <div class="item-delete-btn" onclick="deleteItem('${id}', event)">
+                    <i class="fas fa-times"></i>
+                </div>
+                <div class="text-xl mb-1 text-blue-600">
+                    ${icons[type] || '👔'}
+                </div>
+                <div class="text-[10px] font-black text-slate-700 uppercase">${name}</div>`;
+            el.setAttribute('onclick', `event.stopPropagation(); selectNode('${id}')`);
+
+            Object.assign(el.dataset, { 
+                elId: id || '', 
+                stepid: data.stepid || '',
+                type: type, 
+                name: name || '',
+                roles: data.roles || '', 
+                users: data.users || '', 
+            });
+            //captureChanges(el.id, 'update');
+        };
+
+        // --- 删除组件逻辑 ---
+        function deleteItem(nodeId, event) {
+            event.stopPropagation();
+            const el = document.getElementById(nodeId);
+            if(el) {
+                // 如果删除的是主管节点，检查容器内是否还有其他主管节点
+                // 获取当前节点的父级容器
+                const container = el.closest('.parallel-container'); 
+                let stepId = el.dataset.stepid;
+                const type = el.dataset.type;
+                console.log(type);
+                const isSuperiorType = type === 'superior';
+                if (type === 'superior' && container) {
+                    console.log(`删除主管节点，检查并更新容器 "${container?.dataset.name}" 的审批状态`);
+                    const remainingSuperiors = Array.from(container.querySelectorAll('.workflow-item'))
+                                                    .filter(item => item.dataset.type === 'superior' && item !== el);
+                    console.log(`剩余主管节点数量: ${remainingSuperiors.length}`);
+
+                    // 只有当容器内【没有】其他主管节点时，才取消勾选
+                    if (remainingSuperiors.length === 0) {
+                        container.dataset.superior_approve = 'false';
+                        
+                        // 更新右侧属性面板 (需确保 ID 匹配)
+                        if (activeContainerId === container.id) {
+                            const cb = document.getElementById('step-superior-approve');
+                            if (cb) cb.checked = false;
+                        }
+                    }
+                }
+                // 如果删除的是部门经理节点，检查容器内是否还有其他部门经理节点
+                if (type === 'dept_manager' && container) {
+                    console.log(`删除部门经理节点，检查并更新容器 "${container?.dataset.name}" 的审批状态`);
+                    const remainingDeptManagers = Array.from(container.querySelectorAll('.workflow-item'))
+                                                        .filter(item => item.dataset.type === 'dept_manager' && item !== el);
+                    console.log(`剩余部门经理节点数量: ${remainingDeptManagers.length}`);
+                    if (remainingDeptManagers.length === 0) {
+                        container.dataset.dept_mgr_approve = 'false';
+                        // 更新右侧属性面板 (需确保 ID 匹配)
+                        if (activeContainerId === container.id) {
+                            const cb = document.getElementById('step-dept-manager-approve');
+                            if (cb) cb.checked = false;
+                        }
+                    }
+                }
+                // 如果删除的是角色节点，清空容器的 roles 数据
+                if (type === 'role' && container) {
+                    console.log(`删除角色节点，检查并更新容器 "${container?.dataset.name}" 的审批状态`);
+                    container.dataset.roles = '';
+                }
+                // 如果删除的是用户节点，清空容器的 users 数据
+                if (type === 'user' && container) {
+                    console.log(`删除用户节点，检查并更新容器 "${container?.dataset.name}" 的审批状态`);
+                    container.dataset.users = '';
+                }
+                const nodeName = el.querySelector('.uppercase').innerText;
+                const containerName = container.dataset.name;
+                el.remove();
+                refreshLevelOrders();
+                captureChanges(`从 "${containerName}" 中删除 ${nodeName}`);
+                document.getElementById('node-panel').classList.add('hidden');
+            }
+        }
+
+        // --- Selection Handlers ---
+        function selectContainer(id) {
+            activeContainerId = id; activeNodeId = null;
+            document.querySelectorAll('.parallel-container').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.workflow-item').forEach(n => n.classList.remove('node-active'));
+            document.getElementById(id).classList.add('active');
+            
+            document.getElementById('container-panel').classList.remove('hidden');
+            document.getElementById('node-panel').classList.add('hidden');
+            document.getElementById('no-select-msg').classList.add('hidden');
+            
+            const d = document.getElementById(id).dataset;
+            document.getElementById('display-step-id').innerText = `StepID ${d.stepid}`;
+            document.getElementById('step-level').value  = d.level;
+            document.getElementById('step-order').value = d.order;
+            document.getElementById('step-name-input').value = d.name;
+            document.getElementById('step-superior-approve').checked = (d.superior_approve === 'true');
+            document.getElementById('step-dept-manager-approve').checked = (d.dept_mgr_approve === 'true');
+            document.getElementById('step-mode').value = d.mode;
+            document.getElementById('step-amount_control').checked = (d.amount_control === 'true');
+            document.getElementById('step-min').value = d.min;
+            document.getElementById('step-max').value = d.max;
+            document.getElementById('step-tag').value = d.tag;
+        }
+
+        function selectNode(id) {
+            activeNodeId = id;
+            const node = document.getElementById(id);
+            document.querySelectorAll('.workflow-item').forEach(n => n.classList.remove('node-active'));
+            node.classList.add('node-active');
+
+            document.getElementById('container-panel').classList.add('hidden');
+            document.getElementById('node-panel').classList.remove('hidden');
+            document.getElementById('no-select-msg').classList.add('hidden');
+            
+            const d = node.dataset;
+            document.getElementById('display-order-text').innerText = `Order ${d.order}`;
+            document.getElementById('node-role-cfg').classList.toggle('hidden', d.type !== 'role');
+            document.getElementById('node-user-cfg').classList.toggle('hidden', d.type !== 'user');
+            document.getElementById('node-superior-msg').classList.toggle('hidden', d.type !== 'superior');
+            document.getElementById('node-dept-manager-msg').classList.toggle('hidden', d.type !== 'dept_manager');
+
+            if(d.type === 'role') syncSelect('node-roles', d.roles);
+            if(d.type === 'user') syncSelect('node-users', d.users);
+        }
+
+        ['flow_name', 'flow_description', 'remove_duplicate_approvers', 'is_active'].forEach(id => {
+            document.getElementById(id).addEventListener('change', (e) => {
+                const label = e.target.previousElementSibling?.innerText || e.target.id;
+                captureChanges(`修改流程属性: ${label}`);
+            });
+        });
+        
+        // --- Data Binding ---
+        document.getElementById('step-name-input').addEventListener('input', (e) => {
+            if (!activeContainerId) return;
+            const cont = document.getElementById(activeContainerId);
+            cont.dataset.name = e.target.value;
+            cont.querySelector('.cont-display-name').innerText = e.target.value || "未命名环节";
+            captureChanges(`重命名环节为 "${e.target.value}"`);
+        });
+
+        document.getElementById('step-amount_control').addEventListener('change', (e) => {
+            const c = document.getElementById(activeContainerId);
+            c.dataset.amount_control = e.target.checked;
+            document.getElementById("step-min").disabled = !e.target.checked;
+            document.getElementById("step-max").disabled = !e.target.checked;
+            captureChanges(`切换 "${c.dataset.name}" 的金额控制`);
+        });
+
+        ['step-mode', 'step-min', 'step-max', 'step-tag'].forEach(id => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                const c = document.getElementById(activeContainerId);
+                const field = id.replace('step-', '');
+                c.dataset[field] = e.target.value;
+                const label = document.querySelector(`label[for="${id}"]`)?.innerText || id;
+                captureChanges(`修改 "${c.dataset.name}" 的 ${label} 为 ${e.target.value}`);
+            });
+        });
+
+        ['node-roles', 'node-users'].forEach(id => {
+            document.getElementById(id).addEventListener('change', (e) => {
+                const field = id.replace('node-', '');
+                const c = document.getElementById(activeContainerId);
+                c.dataset[field] = Array.from(e.target.selectedOptions).map(o => o.value).join(',');
+                const node = document.getElementById(activeNodeId);
+                node.dataset[field] = Array.from(e.target.selectedOptions).map(o => o.value).join(',');
+                const nodeName = node.querySelector('.uppercase').innerText;
+                captureChanges(`修改 "${c.dataset.name}" 中 ${nodeName} 的配置`);
+            });
+        });
+
+        //
+        function goto_TestCenter() {
+            window.open(`/workflow/test-center/?workflow_code=${currentWorkflowData['flow_code']}`, '_blank');
+        }
+
+        // --- Save & Load ---
+        async function saveToBackend() {
+            const steps = currentWorkflowData.steps;
+            if (steps.length === 0) return alert("流程配置不能为空");
+            const payload = { 
+                steps: steps,
+                code: currentWorkflowData['flow_code'],
+                name: currentWorkflowData['flow_name'],
+                description: currentWorkflowData['flow_description'],
+                remove_duplicate_approvers: currentWorkflowData['remove_duplicate_approvers'],
+                is_active: currentWorkflowData['is_active']
+            };
+            if (isNewMode) {
+                const c = document.getElementById('new-flow-code').value.trim().toUpperCase();
+                const n = document.getElementById('flow_name').value.trim();
+                if(!n || !c) return alert("请填写流程名称和编码");
+                if (c.length < 4) {
+                    alert("流程编码太短！必须至少4个字符");
+                    return;
+                }
+                if (n.length <= 5) {
+                    alert("流程名称太短！必须大于5个字符");
+                    return;
+                }
+                payload.code = c; payload.name = n; 
+            }
+            else {
+            // 1. 计算差异记录（可选，用于日志）
+            const added = currentWorkflowData.steps.filter(s => !s.step_id);
+            const modified = currentWorkflowData.steps.filter(s => {
+                const orig = originalWorkflowData.steps.find(o => o.id == s.step_id);
+                return orig && JSON.stringify(orig) !== JSON.stringify(s);
+            });
+            console.log(`新增: ${added.length}, 修改: ${modified.length}`);
+            }
+            try {
+                const res = await ApiClient.post(`save/${isNewMode ? 0 : currentWorkflowId}/`, payload);
+                if (!res.success) throw new Error(res.message || "保存失败");
+                const data = res.data || {};
+                alert("流程同步成功！");
+                if (isNewMode && data.workflow_id) {
+                    // window.location.href = `/workflow/design/?workflow_id=${data.workflow_id}`;
+                    activeWorkflowId = data.workflow_id; // 更新当前流程 ID
+                    await loadWorkflowFromServer(currentWorkflowId);
+                    highlightChanges(); // 确保 UI 状态重置                    
+                }
+                else {
+                    // 重新加载最新配置以获取后端生成的 ID，同时保留 undo/redo 历史
+                    await loadWorkflowFromServer(currentWorkflowId);
+                    highlightChanges(); // 确保 UI 状态重置
+                }
+            } catch (err) { alert(err.message); }
+        }
+
+        // --- 同步加载数据 ---
+        async function loadWorkflowFromServer(id) {
+            try {
+                //console.log(`正在加载流程 ID: ${id}`);
+                const res = await ApiClient.get(`config/${id}/`);
+                const data = res.data || {};
+                // console.log("原始服务器响应数据:", JSON.stringify(data));
+                // 兼容性处理：检查 data.steps 或 res.steps
+                const steps = data.steps || [];
+
+                // 1. 保存原始快照（深拷贝防止引用关联）
+                originalWorkflowData = JSON.parse(JSON.stringify(data));
+                
+                // 2. 初始化实时数据
+                currentWorkflowData = JSON.parse(JSON.stringify(data));                
+
+                renderCanvasFromData(steps);
+                //console.log("流程加载完成");
+            } catch (err) {
+                console.error("流程加载失败详情:", err);
+                alert("无法从服务器获取流程配置，请检查后端接口。");
+            }
+        }
+
+        // 从数据实现DOM 渲染逻辑
+        function renderCanvasFromData(steps) {
+            try {
+                if (steps && steps.length > 0) {
+                    const canvas = document.getElementById('canvas');
+                    // 清空旧容器，保留 Start/End 标志
+                    canvas.querySelectorAll('.parallel-container').forEach(el => el.remove());
+
+                    // 1. 按 Level 分组
+                    const orders = {};
+                    steps.forEach(s => {
+                        const l = s.order || 1; // 容错处理
+                        if (!orders[l]) orders[l] = [];
+                        orders[l].push(s);
+                    });
+
+                    // 2. 排序并渲染容器
+                    const sortedLevelKeys = Object.keys(orders).sort((a, b) => a - b);
+                    for (const lNum of sortedLevelKeys) {
+                        const group = orders[lNum];
+                        const first = group[0];
+                        
+                        // 创建容器
+                        const contId = `cont_${++nodeCounter}`;
+                        const contEl = document.createElement('div');
+                        canvas.appendChild(contEl);
+                        initContainer(contEl, contId, first); // 传入第一个节点的数据初始化容器参数
+
+                        // 3. 渲染容器内的节点
+                        const slot = contEl.querySelector('.slot-area');
+                        group.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(s => {
+                            // 初始化节点数据，注意字段名匹配
+                            //console.log(`${s.superior_approve}`)
+                            if (s.superior_approve) {
+                                const nodeEl = document.createElement('div');
+                                slot.appendChild(nodeEl);
+                                type = 'superior'
+                                initNode(nodeEl, `node_${++nodeCounter}`, {
+                                    stepid: s.step_id,
+                                    type: type,
+                                    name: '直接主管',
+                                    roles: s.roles || "",
+                                    users: s.users || s.specific_users || "" // 兼容后端可能叫 specific_users
+                                });
+                            };
+                            if (s.dept_mgr_approve) {
+                                const nodeEl = document.createElement('div');
+                                slot.appendChild(nodeEl);
+                                type = 'dept_manager'
+                                initNode(nodeEl, `node_${++nodeCounter}`, {
+                                    stepid: s.step_id,
+                                    type: type,
+                                    name: '部门经理审批',
+                                    roles: s.roles || "",
+                                    users: s.users || s.specific_users || "" // 兼容后端可能叫 specific_users
+                                });
+                            };
+                            if (s.roles && s.roles.length > 0){
+                                const nodeEl = document.createElement('div');
+                                slot.appendChild(nodeEl);
+                                type='role';
+                                initNode(nodeEl, `node_${++nodeCounter}`, {
+                                    stepid: s.step_id,
+                                    type: type,
+                                    name: '指定角色',
+                                    roles: s.roles || "",
+                                    users: s.users || s.specific_users || "" // 兼容后端可能叫 specific_users
+                                });
+                            };
+                            if (s.users && s.users.length > 0){
+                                const nodeEl = document.createElement('div');
+                                slot.appendChild(nodeEl);
+                                type='user'
+                                initNode(nodeEl, `node_${++nodeCounter}`, {
+                                    stepid: s.step_id,
+                                    type: type,
+                                    name: '指定人员',
+                                    roles: s.roles || "",
+                                    users: s.users || s.specific_users || "" // 兼容后端可能叫 specific_users
+                            });
+                            };
+                        });
+                    }
+                    refreshLevelOrders();
+                    //console.log("流程加载完成");
+                }
+            } catch (err) {
+                console.error("流程加载失败详情:", err);
+                alert("无法从服务器获取流程配置，请检查后端接口。");
+            }            
+        }
+
+        // --- Inits ---
+        function syncSelect(id, vals) {
+            const sel = document.getElementById(id);
+            const vArr = (vals || "").toString().split(',').filter(v => v);
+            Array.from(sel.options).forEach(opt => opt.selected = vArr.includes(opt.value));
+        }
+
+        function deleteContainer() { 
+            if(confirm("确定移除此审批层级及内部所有节点吗？")){
+                const cont = document.getElementById(activeContainerId);
+                const stepid=cont.dataset.stepid;
+                const containerName = cont.dataset.name;
+                activeContainerId = null; activeNodeId = null;
+                cont.remove(); 
+                refreshLevelOrders(); 
+                document.getElementById('container-panel').classList.add('hidden');
+                document.getElementById('no-select-msg').classList.remove('hidden');
+                captureChanges(`删除环节 "${containerName}"`);
+            }
+        }
+
+        function navigateToNewDesign() { window.location.href = `/workflow/design/?workflow_id=new`; }
+
+        async function deleteWorkflow(workflowId, event) {
+            event.stopPropagation(); // 防止触发父元素的点击事件（即跳转页面）
+            if (confirm(`确定要删除此工作流吗？此操作不可恢复。`)) {
+                try {
+                    await ApiClient.post(`delete/${workflowId}/`);
+                    alert('工作流已删除。');
+                    // 如果删除的是当前正在编辑的流程，则跳转到新建页面
+                    if (workflowId == currentWorkflowId) {
+                        navigateToNewDesign();
+                    } else {
+                        // 否则，仅刷新列表
+                        loadWorkflowList();
+                    }
+                } catch (err) {
+                    alert(`删除失败: ${err.message}`);
+                }
+            }
+        }
+
+        async function loadMetadata() {
+            try {
+                const res = await ApiClient.get('metadata/');
+                const data = res.data || { roles: [], users: [] };
+                const rSel = document.getElementById('node-roles');
+                const uSel = document.getElementById('node-users');
+                data.roles.forEach(r => rSel.add(new Option(r.name, r.id)));
+                data.users.forEach(u => uSel.add(new Option(u.username, u.id)));
+            } catch(e) {}
+        }
+
+        window.onload = async () => {
+            await Promise.all([loadMetadata(), loadWorkflowList()]);
+            if (!isNewMode && currentWorkflowId !== "0") loadWorkflowFromServer(currentWorkflowId);
+            else updateEmptyState();
+        };
+
+        async function loadWorkflowList() {
+            try {
+                const res = await ApiClient.get('list/');
+                const data = res.data || [];
+                document.getElementById('workflow-list').innerHTML = data.map(f => `
+                    <div class="workflow-item-container flex items-center justify-between p-3 border rounded-xl text-xs mb-2 transition-all cursor-pointer ${f.id == currentWorkflowId ? 'bg-indigo-600 border-indigo-600 text-white font-bold shadow-lg shadow-indigo-100' : 'bg-white hover:border-indigo-400'}" onclick="window.location.href='/workflow/design/?workflow_id=${f.id}'">
+                        <div>
+                            ${f.name}
+                            <div class="text-[9px] opacity-60 mt-1 font-mono">${f.code}</div>
+                        </div>
+                        <button onclick="deleteWorkflow(${f.id}, event)" class="workflow-delete-btn hidden bg-red-100 text-red-600 hover:bg-red-200 rounded-lg w-8 h-8 flex items-center justify-center">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>`).join('');
+            } catch(e) {}
+        }
+    </script>
+</body>
+</html>

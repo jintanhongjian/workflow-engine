@@ -1,0 +1,735 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Builder 对话工作台</title>
+    <link href="{% static 'css/inter.css' %}" rel="stylesheet">
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0f172a;
+            --muted: #4b5563;
+            --primary: #2563eb;
+            --primary-soft: #eff4ff;
+            --card: rgba(255, 255, 255, 0.9);
+        }
+        body {
+            font-family: 'Inter', 'Helvetica Neue', system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at 20% 20%, #e0ecff 0, transparent 30%),
+                        radial-gradient(circle at 80% 0%, #fde68a 0, transparent 25%),
+                        linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+            color: var(--ink);
+        }
+        .glass {
+            background: var(--card);
+            backdrop-filter: blur(10px);
+        }
+        .shadow-soft { box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08); }
+        .pill { border-radius: 999px; }
+        .log-mono { font-family: 'Inter', 'SFMono-Regular', Menlo, monospace; }
+    </style>
+</head>
+<body class="text-slate-800">
+    <div class="max-w-6xl mx-auto py-8 px-4 space-y-6">
+    <!-- Top Navigation (Consistent with Manage Page) -->
+    <nav class="glass shadow-soft border border-slate-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-1.5 rounded-lg shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold text-slate-800 tracking-tight">Workflow Engine</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                     <a href="{% url 'api_services:system_prompt_list' %}" class="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        管理提示词
+                     </a>
+                     <a href="{% url back_url|default:'api_services:task_manage' %}" class="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        返回任务列表
+                     </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+        <header class="flex items-start justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-slate-900">AI Builder 对话工作台</h1>
+                <p class="text-sm text-slate-600 mt-2">用自然语言创建技能或定时任务，实时查看执行日志。</p>
+                <div class="mt-4 flex flex-col gap-2 text-sm text-slate-700">
+                    <div class="flex items-center gap-2">
+                        <label for="modeSelect" class="font-medium">对话模式</label>
+                        <select id="modeSelect" class="rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            {% for mode in conversation_modes %}
+                                <option value="{{ mode.code }}" {% if mode.code == conversation_mode_default %}selected{% endif %}>
+                                    {{ mode.label }} ({{ mode.code }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <p id="modeHint" class="text-[11px] text-slate-500">智能模式支持流式输出</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-1.5 rounded border border-green-100 whitespace-nowrap">
+                <span class="h-2 w-2 bg-green-500 rounded-full"></span>
+                模型已启用
+            </div>
+        </header>
+        <section class="grid grid-cols-12 gap-4">
+            <aside class="col-span-12 lg:col-span-3 space-y-4">
+                <div class="glass rounded-xl shadow-soft border border-slate-200 h-full">
+                    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+                        <div class="text-sm text-slate-600">会话列表</div>
+                        <div class="flex items-center gap-2 text-xs">
+                            <button id="newConversationBtn" type="button" class="px-2 py-1 rounded border border-slate-200 hover:border-blue-500 hover:text-blue-600">新建</button>
+                            <button id="refreshConversationBtn" type="button" class="px-2 py-1 rounded border border-slate-200 hover:border-blue-500 hover:text-blue-600">刷新</button>
+                        </div>
+                    </div>
+                    <div id="conversationList" class="p-3 space-y-2 text-sm max-h-[720px] overflow-y-auto">
+                        <div class="text-xs text-slate-500">加载中...</div>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="col-span-12 lg:col-span-9 space-y-4">
+                <section class="glass rounded-xl shadow-soft border border-slate-200">
+                    <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+                        <div class="space-y-2">
+                            <div class="text-sm text-slate-600">支持工具：create_and_register_skill · create_user_task</div>
+                            <div class="text-xs text-slate-500">当前会话：<span id="activeConversationTitle" class="font-medium text-slate-700">未选择</span></div>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-slate-500">
+                            <span id="liveStatus" class="text-amber-600 hidden">生成中...</span>
+                            <div class="mt-1 flex gap-2 text-[11px] text-slate-400">
+                                <button type="button" data-conv-action="message_list"  class="px-2 py-1 rounded border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600">管理</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="chatBox" class="h-[520px] overflow-y-auto space-y-3 p-4 bg-slate-50 border-b border-slate-200">
+                        <div class="text-xs text-slate-500">小提示：描述清楚任务名称、计划(如 interval/period/specdate) 和 task_params(JSON)。</div>
+                    </div>
+                    <form id="chatForm" class="p-4 space-y-3">
+                        {% csrf_token %}
+                        <div id="modeInputs" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                            <div class="space-y-1">
+                                <label class="text-slate-600">技能名称（skill_call 模式必填）</label>
+                                <div class="relative">
+                                    <select id="skillNameInput" class="appearance-none w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">-- 选择技能 --</option>
+                                        {% for skill in skill_list %}
+                                            <option value="{{ skill }}">{{ skill }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
+                                </div>
+                                <div id="skillDetails" class="hidden mt-2 p-2 bg-slate-100 border border-slate-200 rounded text-xs text-slate-600 max-h-40 overflow-y-auto font-mono whitespace-pre-wrap"></div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-slate-600">系统提示（默认随模式）</label>
+                                <select id="systemPromptSelectInline" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                            </div>
+                        </div>
+                        <textarea id="chatInput" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="输入你的需求，例如：创建一个每天9点发送日报的任务，收件人是..." required></textarea>
+                        <div class="flex flex-col gap-2">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div id="status" class="text-xs text-slate-500 flex items-center gap-2">
+                                    <span id="liveStatus" class="text-amber-600 hidden">生成中...</span>
+                                </div>
+                                <button type="submit" class="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow hover:shadow-md hover:-translate-y-[1px] transition">发送</button>
+                            </div>
+                            <div class="flex items-center gap-3 text-xs text-slate-600">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <span class="inline-flex items-center justify-center h-6 w-6 rounded border border-slate-300 text-slate-500">📎</span>
+                                    <span>添加文件 (可多选)</span>
+                                    <input id="documentsInput" type="file" multiple class="hidden">
+                                </label>
+                                <span id="documentsSummary" class="text-[11px] text-slate-500"></span>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="glass rounded-xl shadow-soft border border-slate-200">
+                    <div class="p-4 border-b border-slate-200 text-sm text-slate-600 flex items-center justify-between">
+                        <span>实时过程与测试日志</span>
+                        <span class="pill px-2 py-1 bg-slate-100 text-slate-600 text-[11px]">Streaming</span>
+                    </div>
+                    <div id="logBox" class="p-4 space-y-2 text-xs text-slate-700 h-64 overflow-y-auto bg-slate-50 log-mono">
+                        <div class="text-slate-500">等待输入...</div>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </div>
+
+    <script src="{% static 'js/api_client.js' %}"></script>
+    <script>
+    const ApiClient = new window.ApiClient();
+    const chatBox = document.getElementById('chatBox');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const modeSelect = document.getElementById('modeSelect');
+    const skillNameInput = document.getElementById('skillNameInput');
+    const skillDetails = document.getElementById('skillDetails');
+    const systemPromptSelectTop = document.getElementById('systemPromptSelect');
+    const systemPromptSelectInline = document.getElementById('systemPromptSelectInline');
+    const statusEl = document.getElementById('status');
+    const logBox = document.getElementById('logBox');
+    const liveStatus = document.getElementById('liveStatus');
+    const conversationListEl = document.getElementById('conversationList');
+    const newConversationBtn = document.getElementById('newConversationBtn');
+    const refreshConversationBtn = document.getElementById('refreshConversationBtn');
+    const activeConversationTitle = document.getElementById('activeConversationTitle');
+    const documentsInput = document.getElementById('documentsInput');
+    const documentsSummary = document.getElementById('documentsSummary');
+    const systemPrompts = JSON.parse('{{ system_prompts_json|escapejs }}');
+    const modes = JSON.parse('{{ modes_json|escapejs }}');
+    const modeDefaults = JSON.parse('{{ mode_defaults_json|escapejs }}');
+    const conversationModeDefault = '{{ conversation_mode_default|default:"run_intelligent_task" }}';
+    let conversationId = localStorage.getItem('ai_workbench_cid') || '';
+    let conversationMode = modeSelect.value || conversationModeDefault;
+    let activeSystemPromptName = '';
+    let activeSystemPromptId = '';
+    let history = [];
+    let conversations = [];
+
+    modeSelect.value = conversationMode;
+    const initialDefault = getModeDefault(conversationMode);
+    applySystemPromptSelection(initialDefault.name, initialDefault.id);
+
+    function getModeLabel(mode) {
+        const modeObj = modes.find(m => m.code === mode);
+        return (modeObj && modeObj.label) || mode;
+    }
+
+    function modeDescription(mode) {
+        const found = modes.find(m => m.code === mode);
+        return (found && found.description) || '';
+    }
+
+    function getModeDefault(mode) {
+        return modeDefaults[mode] || { id: null, name: '' };
+    }
+
+    function populateSystemPromptSelects(selectedId) {
+        const defaultName = getModeDefault(conversationMode).name || '模式默认';
+        const options = [
+            ...systemPrompts,
+        ];
+        [systemPromptSelectTop, systemPromptSelectInline].forEach(sel => {
+            if (!sel) return;
+            sel.innerHTML = '';
+            options.forEach(opt => {
+                const optionEl = document.createElement('option');
+                optionEl.value = opt.id;
+                optionEl.textContent = opt.name;
+                sel.appendChild(optionEl);
+            });
+            sel.value = selectedId || '';
+        });
+    }
+
+    function applySystemPromptSelection(name, id) {
+        activeSystemPromptName = name || getModeDefault(conversationMode).name || '';
+        activeSystemPromptId = id || '';
+        populateSystemPromptSelects(activeSystemPromptId);
+    }
+
+    function updateDocumentsSummary() {
+        if (!documentsInput || !documentsSummary) return;
+        const files = Array.from(documentsInput.files || []);
+        if (!files.length) {
+            documentsSummary.textContent = '';
+            return;
+        }
+        const names = files.map(f => f.name).slice(0, 3).join(', ');
+        const more = files.length > 3 ? ` 等 ${files.length} 个文件` : '';
+        documentsSummary.textContent = `${names}${more}`;
+    }
+
+    if (documentsInput) {
+        documentsInput.addEventListener('change', updateDocumentsSummary);
+    }
+
+    function toggleModeInputs() {
+        const mode = modeSelect.value;
+        conversationMode = mode;
+        const skillBlock = skillNameInput.closest('.space-y-1');
+        if (skillBlock) skillBlock.style.display = mode === 'skill_call' ? 'block' : 'none';
+        const hint = document.getElementById('modeHint');
+        if (hint) {
+            const desc = modeDescription(mode);
+            if (desc) {
+                hint.textContent = desc;
+            } else if (mode === 'run_intelligent_task') {
+                hint.textContent = '智能任务模式：支持流式输出与工具编排';
+            } else if (mode === 'skill_call') {
+                hint.textContent = '技能调用模式：需提供 skill_name';
+            } else {
+                hint.textContent = '内容生成模式：可选系统提示下拉选择';
+            }
+        }
+        const defaultPrompt = getModeDefault(conversationMode);
+        populateSystemPromptSelects(activeSystemPromptId || defaultPrompt.id || '');
+    }
+    toggleModeInputs();
+
+    skillNameInput.addEventListener('change', async () => {
+        const skillName = skillNameInput.value;
+        const skillDetails = document.getElementById('skillDetails');
+        if (!skillName) {
+            skillDetails.classList.add('hidden');
+            skillDetails.innerHTML = '';
+            return;
+        }
+
+        skillDetails.classList.remove('hidden');
+        skillDetails.innerHTML = '<span class="text-slate-400">加载中...</span>';
+
+        try {
+            const json = await ApiClient.get("{% url 'api_services:skill_details' %}", { skill_name: skillName });
+            if (json.success && json.data) {
+                const info = json.data;
+                let html = `<div class="font-bold text-slate-700 mb-2 border-b border-slate-200 pb-1">${info.description || '暂无描述'}</div>`;
+                
+                if (info.parameters && info.parameters.length) {
+                    html += '<div class="space-y-1">';
+                    info.parameters.forEach(p => {
+                        html += `<div class="flex flex-col sm:flex-row sm:items-baseline gap-1">
+                            <div class="shrink-0 font-mono text-blue-600 font-semibold text-[11px]">${p.name}</div>
+                            <div class="text-[10px] text-slate-400 font-mono">(${p.type})</div>
+                            ${p.required ? '<div class="text-red-500 font-bold text-[10px]" title="Required">*</div>' : ''}
+                            <div class="text-slate-600 text-[11px] break-words">${p.description || ''}</div>
+                        </div>`;
+                    });
+                    html += '</div>';
+                } else {
+                    html += '<div class="text-slate-400 italic">无参数</div>';
+                }
+                skillDetails.innerHTML = html;
+            } else {
+                skillDetails.textContent = json.message || '获取详细信息失败';
+                skillDetails.classList.add('text-red-500');
+            }
+        } catch (err) {
+            console.error(err);
+            skillDetails.textContent = '加载异常';
+            skillDetails.classList.add('text-red-500');
+        }
+    });
+
+    if (skillNameInput.value && conversationMode === 'skill_call') {
+        skillNameInput.dispatchEvent(new Event('change'));
+    }
+
+    function setConversationId(cid) {
+        if (!cid) return;
+        conversationId = cid;
+        localStorage.setItem('ai_workbench_cid', cid);
+        highlightActiveConversation();
+    }
+
+    // 初次加载尝试恢复历史和会话列表
+    loadConversations();
+    loadHistory();
+
+    async function loadHistory() {
+        if (!conversationId) return;
+        try {
+            history = [];
+            const data = await ApiClient.get("{% url 'api_services:ai_workbench_history' %}", { conversation_id: conversationId });
+            if (data && data.success === false) {
+                logEvent(`历史记录加载失败：${data.message || '未知错误'}`, 'warn');
+                return;
+            }
+            const payload = data && data.data ? data.data : {};
+            if (payload.conversation_id) {
+                setConversationId(payload.conversation_id);
+            }
+            if (payload.title) {
+                activeConversationTitle.textContent = payload.title || '未命名会话';
+            }
+            if (payload.conversation_mode) {
+                conversationMode = payload.conversation_mode;
+                modeSelect.value = conversationMode;
+                toggleModeInputs();
+            }
+            if (payload.messages && payload.messages.length) {
+                chatBox.innerHTML = '';
+                payload.messages.forEach(msg => {
+                    appendMessage(msg.role === 'assistant' ? 'assistant' : 'user', msg.text || '', msg.id);
+                    history.push({id: msg.id, role: msg.role === 'assistant' ? 'assistant' : 'user', text: msg.text || ''});
+                });
+                const promptMeta = (payload.messages || []).find(m => m.system_prompt_name || m.system_prompt_id);
+                if (promptMeta) {
+                    applySystemPromptSelection(promptMeta.system_prompt_name, promptMeta.system_prompt_id);
+                } else {
+                    const fallback = getModeDefault(conversationMode);
+                    applySystemPromptSelection(fallback.name, fallback.id);
+                }
+                logEvent(`已加载历史记录，共 ${payload.messages.length} 条`, 'info');
+                if (Array.isArray(payload.logs)) {
+                    payload.logs.forEach(l => logEvent(l, 'info'));
+                }
+            } else {
+                const fallback = getModeDefault(conversationMode);
+                applySystemPromptSelection(fallback.name, fallback.id);
+            }
+        } catch (err) {
+            logEvent(`历史记录加载失败：${err}`, 'warn');
+        }
+    }
+
+    async function loadConversations() {
+        try {
+            const data = await ApiClient.get("{% url 'api_services:ai_workbench_history' %}");
+            if (data && data.success === false) {
+                logEvent(`会话列表加载失败：${data.message || '未知错误'}`, 'warn');
+                return;
+            }
+            const payload = data && data.data ? data.data : {};
+            conversations = payload.conversations || [];
+            renderConversationList(conversations);
+        } catch (err) {
+            logEvent(`会话列表加载失败：${err}`, 'warn');
+        }
+    }
+
+    function logEvent(text, tone = 'info') {
+        const line = document.createElement('div');
+        const colors = {
+            info: 'text-slate-700',
+            warn: 'text-amber-700',
+            error: 'text-red-700',
+            success: 'text-emerald-700'
+        };
+        line.className = colors[tone] || colors.info;
+        const ts = new Date().toLocaleTimeString();
+        line.textContent = `[${ts}] ${text}`;
+        logBox.appendChild(line);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function appendMessage(role, text, id) {
+        const bubble = document.createElement('div');
+        bubble.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+        bubble.dataset.msgId = id || '';
+        bubble.innerHTML = `
+            <div class="max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm ${role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-800'}">
+                <div class="text-[11px] uppercase tracking-wide mb-1 ${role === 'user' ? 'text-blue-100' : 'text-slate-400'}">${role}</div>
+                <div class="whitespace-pre-wrap message-text">${text}</div>
+            </div>`;
+        chatBox.appendChild(bubble);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function renderConversationList(list) {
+        if (!Array.isArray(list) || !list.length) {
+            conversationListEl.innerHTML = '<div class="text-xs text-slate-500">暂无会话，点击“新建”开始。</div>';
+            return;
+        }
+
+        conversationListEl.innerHTML = '';
+        list.forEach(item => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = `w-full text-left px-3 py-2 rounded border border-transparent hover:border-blue-200 hover:bg-blue-50 ${item.id === conversationId ? 'bg-blue-50 border-blue-200' : 'bg-white'}`;
+            row.innerHTML = `
+                <div class="text-sm font-medium text-slate-800 truncate">${item.title || '未命名会话'}</div>
+                <div class="text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>${item.message_count || 0} 条</span>
+                    <span>${item.last_message_at ? new Date(item.last_message_at).toLocaleString() : '暂无时间'}</span>
+                </div>
+                <div class="text-[11px] text-blue-600 mt-1">模式：${getModeLabel(item.conversation_mode || 'run_intelligent_task')}</div>
+                <div class="text-xs text-slate-500 mt-1 line-clamp-2">${item.last_text || ''}</div>
+                <div class="mt-2 flex items-center gap-2 text-[11px]">
+                    <button type="button" data-conv-action="edit" class="px-2 py-1 rounded border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600">编辑</button>
+                    <button type="button" data-conv-action="delete" class="px-2 py-1 rounded border border-slate-200 text-slate-600 hover:border-red-500 hover:text-red-600">删除</button>
+                </div>
+            `;
+            const msgBtn = document.querySelector('[data-conv-action="message_list"]');
+            if (msgBtn) {
+                msgBtn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    messageList(item);
+                });
+            }
+            const editBtn = row.querySelector('[data-conv-action="edit"]');
+            if (editBtn) {
+                editBtn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    editConversation(item);
+                });
+            }
+            const deleteBtn = row.querySelector('[data-conv-action="delete"]');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    deleteConversation(item);
+                });
+            }
+            row.addEventListener('click', () => selectConversation(item.id, item.title, item.conversation_mode));
+            conversationListEl.appendChild(row);
+        });
+    }
+
+    function highlightActiveConversation() {
+        renderConversationList(conversations);
+    }
+
+    function selectConversation(id, title, mode) {
+        if (!id) return;
+        conversationId = id;
+        setConversationId(id);
+        activeConversationTitle.textContent = title || '未命名会话';
+        if (mode) {
+            conversationMode = mode;
+            modeSelect.value = mode;
+            toggleModeInputs();
+        }
+        history = [];
+        chatBox.innerHTML = '<div class="text-xs text-slate-500">加载会话中...</div>';
+        loadHistory();
+    }
+
+    async function messageList(item) {
+        if (!item || !item.id) return;
+        const url = `messages/?q=${item.id}`;
+        window.open(url, '_blank');
+    }
+
+    async function editConversation(item) {
+        if (!item || !item.id) return;
+        const url = `conversation/${item.id}/edit/`;
+        window.open(url, '_blank');
+    }
+
+    async function deleteConversation(item) {
+        if (!item || !item.id) return;
+        if (!confirm('确认删除该会话？此操作不可恢复。')) return;
+        try {
+            const data = await ApiClient.post("{% url 'api_services:ai_workbench_conversation_delete' %}", { conversation_id: item.id });
+            const ok = data && data.success !== false;
+            if (!ok) {
+                const message = (data && data.message) || '未知错误';
+                logEvent(`会话删除失败：${message}`, 'error');
+                return;
+            }
+            logEvent('会话已删除。', 'success');
+            if (conversationId === item.id) {
+                startNewConversation();
+            }
+            await loadConversations();
+        } catch (err) {
+            logEvent(`会话删除异常：${err}`, 'error');
+        }
+    }
+
+    function startNewConversation() {
+        history = [];
+        chatBox.innerHTML = '<div class="text-xs text-slate-500">已开始新会话。</div>';
+        logBox.innerHTML = '<div class="text-slate-500">新会话日志。</div>';
+        conversationId = '';
+        activeConversationTitle.textContent = '新建会话';
+        localStorage.removeItem('ai_workbench_cid');
+        conversationMode = modeSelect.value || 'run_intelligent_task';
+        toggleModeInputs();
+        const fallback = getModeDefault(conversationMode);
+        applySystemPromptSelection(fallback.name, fallback.id);
+        highlightActiveConversation();
+    }
+
+    newConversationBtn.addEventListener('click', () => {
+        startNewConversation();
+    });
+
+    modeSelect.addEventListener('change', () => {
+        toggleModeInputs();
+    });
+
+    [systemPromptSelectTop, systemPromptSelectInline].forEach(sel => {
+        if (!sel) return;
+        sel.addEventListener('change', () => {
+            const val = sel.value || '';
+            activeSystemPromptId = val;
+            const picked = systemPrompts.find(p => String(p.id) === String(val));
+            const defaultName = getModeDefault(conversationMode).name;
+            activeSystemPromptName = picked ? picked.name : defaultName;
+            populateSystemPromptSelects(val);
+        });
+    });
+
+    refreshConversationBtn.addEventListener('click', () => {
+        loadConversations();
+    });
+
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        appendMessage('user', message);
+        history.push({role: 'user', text: message});
+        
+        const files = documentsInput.files.length ? Array.from(documentsInput.files) : [];
+        if (files.length > 0) {
+            const names = files.map(f => f.name).join(', ');
+            logEvent(`附件上传：${names}`);
+        }
+        
+        chatInput.value = '';
+        statusEl.textContent = '生成中...';
+        liveStatus.classList.remove('hidden');
+        logEvent(`用户请求：${message}`);
+
+        try {
+            let payloadData;
+            const headers = {
+                'Accept': 'application/x-ndjson, application/json'
+            };
+
+            if (files.length > 0) {
+                 const formData = new FormData();
+                 formData.append('message', message);
+                 formData.append('history_json', JSON.stringify(history));
+                 formData.append('conversation_id', conversationId || '');
+                 formData.append('stream', 'true');
+                 formData.append('mode', conversationMode);
+                 formData.append('skill_name', skillNameInput.value.trim() || '');
+                 formData.append('system_prompt_id', activeSystemPromptId || '');
+                 
+                 for (let i = 0; i < files.length; i++) {
+                     formData.append('documents', files[i]);
+                 }
+                 payloadData = formData;
+            } else {
+                 payloadData = {
+                    message,
+                    history,
+                    conversation_id: conversationId,
+                    stream: true,
+                    mode: conversationMode,
+                    skill_name: skillNameInput.value.trim() || undefined,
+                    system_prompt_id: activeSystemPromptId || undefined,
+                };
+            }
+
+            // use raw: true to get the fetch response for streaming
+            const resp = await ApiClient.post('{% url "api_services:ai_workbench_chat" %}?stream=1', payloadData, {
+                headers: headers,
+                raw: true
+            });
+            logEvent('请求已发送，等待模型响应...');
+
+            // Clear file input
+            documentsInput.value = ''; 
+            updateDocumentsSummary();
+
+            const contentType = resp.headers.get('content-type') || '';
+            if (contentType.includes('application/x-ndjson')) {
+                await handleStreamResponse(resp);
+            } else {
+                const data = await resp.json();
+                handleFinalResponse(data);
+            }
+        } catch (err) {
+            const msg = '调用失败，请稍后重试。';
+            appendMessage('assistant', msg);
+            history.push({role: 'assistant', text: msg});
+            logEvent(`异常：${err}`, 'error');
+        } finally {
+            statusEl.textContent = '';
+            liveStatus.classList.add('hidden');
+        }
+    });
+
+    async function handleStreamResponse(resp) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            let idx;
+            while ((idx = buffer.indexOf('\n')) >= 0) {
+                const line = buffer.slice(0, idx).trim();
+                buffer = buffer.slice(idx + 1);
+                if (!line) continue;
+                try {
+                    const evt = JSON.parse(line);
+                    if (evt.type === 'log') {
+                        logEvent(evt.message || '', 'info');
+                    } else if (evt.type === 'error') {
+                        logEvent(evt.message || '未知错误', 'error');
+                        appendMessage('assistant', evt.message || '请求失败');
+                        history.push({role: 'assistant', text: evt.message || '请求失败'});
+                    } else if (evt.type === 'reply') {
+                        appendMessage('assistant', evt.reply || '');
+                        history.push({role: 'assistant', text: evt.reply || ''});
+                        if (evt.conversation_id) {
+                            setConversationId(evt.conversation_id);
+                            loadConversations();
+                        }
+                        if (evt.system_prompt_name || evt.system_prompt_id) {
+                            applySystemPromptSelection(evt.system_prompt_name, evt.system_prompt_id);
+                        }
+                        if (Array.isArray(evt.logs)) {
+                            evt.logs.forEach(l => logEvent(l, 'info'));
+                        }
+                        logEvent('响应完成', 'success');
+                    }
+                } catch (err) {
+                    logEvent(`解析流失败：${err}`, 'warn');
+                }
+            }
+        }
+    }
+
+    function handleFinalResponse(data) {
+        const ok = data && data.success !== false;
+        const payload = (data && data.data) || {};
+        if (!ok) {
+            const msg = (data && (data.message || data.error)) || '请求失败';
+            appendMessage('assistant', msg);
+            history.push({role: 'assistant', text: msg});
+            logEvent(`错误：${msg}`, 'error');
+            if (Array.isArray(payload.logs)) {
+                payload.logs.forEach(l => logEvent(l, 'info'));
+            }
+            return;
+        }
+        appendMessage('assistant', payload.reply || '');
+        history.push({role: 'assistant', text: payload.reply || ''});
+        if (payload.conversation_id) {
+            setConversationId(payload.conversation_id);
+            loadConversations();
+        }
+        if (payload.mode) {
+            conversationMode = payload.mode;
+            modeSelect.value = payload.mode;
+            toggleModeInputs();
+        }
+        if (payload.system_prompt_name || payload.system_prompt_id) {
+            applySystemPromptSelection(payload.system_prompt_name, payload.system_prompt_id);
+        }
+        if (Array.isArray(payload.logs)) {
+            payload.logs.forEach(l => logEvent(l, 'info'));
+        }
+        logEvent('响应完成', 'success');
+    }
+    </script>
+</body>
+</html>

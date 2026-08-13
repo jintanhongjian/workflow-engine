@@ -1,0 +1,57 @@
+[project]
+name = "workflow-engine"
+version = "0.1.0"
+description = "workflow-engine"
+readme = "README.md"
+requires-python = ">=3.12"
+# 保持依赖清晰，uv 会自动生成精确到版本的 uv.lock
+dependencies = [
+    "celery>=5.6.2",
+    "django>=6.0.1",
+    "django-celery-beat>=2.1.0",
+    "filetype>=1.2.0",
+    "flower>=2.0.1",
+    "google-api-python-client>=2.188.0",
+    "google-auth-httplib2>=0.3.0",
+    "google-auth-oauthlib>=1.2.4",
+    "google-genai>=1.60.0",
+    "gunicorn>=24.1.1",
+    "markdown>=3.10.1",
+    "openai>=2.16.0",
+    "pillow>=12.1.0",
+    "pytz>=2025.2",
+    "redis>=7.1.0",
+    "python-dotenv>=1.0.1", # 强烈建议添加，用于管理 API Key
+    "django-rosetta>=0.10.3",
+    "polib>=1.2.0",
+    "pandas>=3.0.0",
+    "openpyxl>=3.1.5",
+    "django-timezone-field>=4.2.3",
+    "whitenoise>=6.11.0",
+    "docstring-parser>=0.17.0",
+    "psycopg2-binary>=2.9.11",
+    "pymysql>=1.1.2",
+    "pymssql>=2.3.13",
+    "pymongo>=4.16.0",
+    "oracledb>=3.4.2",
+    "mysql-connector-python>=9.6.0",
+    "google-api-core==2.29.0",
+    "jieba>=0.42.1",
+    "django-cors-headers>=4.9.0",
+    "rpalite>=0.2.0",
+    "pyautogui>=0.9.54",
+    "robotframework>=7.4.2",
+    "deprecated>=1.3.1",
+]
+
+# --- 🚀 核心优化：定义快捷任务 ---
+# 这样你可以在服务器直接运行 `uv run <cmd>`
+[tool.uv]
+managed = true
+package = false # 对于 Django 项目，通常不需要将其本身打包
+
+[project.scripts]
+# 定义快捷命令
+server = "gunicorn workflow-engine.wsgi:application --bind 0.0.0.0:8001 --timeout 120"
+worker = "celery -A workflow-engine worker -l info"
+beat = "celery -A workflow-engine beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler"

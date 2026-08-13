@@ -1,0 +1,301 @@
+{% load static %}
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务调度管理 - Workflow Engine</title>
+    <!-- 引入 Tailwind CSS -->
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <style>
+        /* Custom scrollbar for tables if needed */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-slate-800 font-sans antialiased">
+    
+    <!-- Top Navigation -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-600 text-white p-1.5 rounded-lg shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold text-slate-800 tracking-tight">Workflow Engine</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full"></span>
+                        System Online
+                     </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+        
+        <!-- Header Section -->
+        <div class="md:flex md:items-center md:justify-between">
+            <div class="min-w-0 flex-1">
+                <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
+                    任务调度控制台
+                </h2>
+                <p class="mt-2 text-sm text-gray-500">
+                    管理自动化任务并监控执行历史。
+                </p>
+            </div>
+            <div class="mt-4 flex md:ml-4 md:mt-0">
+                <a href="{% url 'api_services:custom_task_create' %}" class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-all duration-200">
+                    <svg class="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                    </svg>
+                    创建新任务
+                </a>
+                <a href="{% url 'api_services:ai_workbench' %}" class="ml-3 inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 transition-all duration-200">
+                    <svg class="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656l-6.01 6.01a.75.75 0 01-1.06 0l-6.01-6.01a4 4 0 010-5.656z" clip-rule="evenodd" />
+                    </svg>
+                    AI Workbench
+                </a>
+            </div>
+        </div>
+
+        {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+            <div class="rounded-lg bg-white p-4 border-l-4 border-blue-500 shadow-sm flex items-start animate-fade-in-down">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900">{{ message }}</p>
+                </div>
+                <button type="button" class="ml-auto bg-white rounded-md p-1.5 inline-flex text-gray-400 hover:text-gray-500 focus:outline-none" onclick="this.parentElement.remove()">
+                    <span class="sr-only">Dismiss</span>
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Tasks List Card -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <div>
+                     <h3 class="text-base font-semibold leading-6 text-gray-900">活跃任务列表</h3>
+                     <p class="text-sm text-gray-500 mt-1">查看和管理所有定时任务。</p>
+                </div>
+                <span class="inline-flex items-center rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 shadow-sm ring-1 ring-inset ring-gray-300">
+                    Total: {{ tasks|length }}
+                </span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-6 pr-3 text-left text-xs font-bold uppercase tracking-wider text-gray-500">任务名称</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">调用函数</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">调度策略</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">状态</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-xs font-bold uppercase tracking-wider text-gray-500">上次更新</th>
+                            <th scope="col" class="relative py-3.5 pl-3 pr-6">
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        {% for task in tasks %}
+                        <tr class="hover:bg-gray-50 transition-colors duration-150 group">
+                            <td class="whitespace-nowrap py-4 pl-6 pr-3">
+                                <div class="font-medium text-gray-900">{{ task.title }}</div>
+                                {% if task.description %}
+                                <div class="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]" title="{{ task.description }}">{{ task.description }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                <code class="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-mono border border-slate-200">{{ task.task_name }}</code>
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-600">
+                                <div class="flex items-center gap-1.5">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <span class="font-medium">{{ task.plan_type }}</span>
+                                </div>
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                {% if task.is_active %}
+                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                        <span class="relative flex h-2 w-2">
+                                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                        </span>
+                                        运行中
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
+                                        <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+                                        已暂停
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 font-mono text-xs">
+                                {{ task.updated_at|date:'Y-m-d H:i' }}
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
+                                <div class="flex justify-end items-center gap-4 opacity-70 group-hover:opacity-100 transition-opacity">
+                                    <a href="{% url 'api_services:custom_task_edit' task.id %}" class="text-blue-600 hover:text-blue-900 font-semibold flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                        编辑
+                                    </a>
+                                    <form method="post" onsubmit="return confirm('立即执行该任务？');" class="inline-block">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="run_now">
+                                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                                        <button type="submit" class="text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                            立即运行
+                                        </button>
+                                    </form>
+                                    <form method="post" onsubmit="return confirm('警告：确认要永久删除任务 “{{ task.title }}” 吗？');" class="inline-block">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_task">
+                                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                                        <button type="submit" class="text-red-600 hover:text-red-900 font-semibold flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            删除
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center">
+                                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 mb-4">
+                                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                    </svg>
+                                </div>
+                                <h3 class="mt-2 text-sm font-semibold text-gray-900">暂无任务</h3>
+                                <p class="mt-1 text-sm text-gray-500">开始创建一个新的定时任务。</p>
+                                <div class="mt-6">
+                                    <a href="{% url 'api_services:custom_task_create' %}" class="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                                        <svg class="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                        </svg>
+                                        新建任务
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="mt-12">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold leading-6 text-gray-900 flex items-center gap-2">
+                    <svg class="p-1 w-7 h-7 bg-indigo-100 text-indigo-600 rounded-md" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    近期执行日志
+                </h3>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="py-3.5 pl-6 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">执行时间</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">任务标识</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">状态</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-1/3">结果摘要</th>
+                                <th scope="col" class="relative py-3.5 pl-3 pr-6">
+                                    <span class="sr-only">Actions</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            {% for log in logs %}
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="whitespace-nowrap py-4 pl-6 pr-3 text-sm text-gray-600">
+                                    <div class="font-mono text-xs text-gray-500">{{ log.timestamp|date:'Y-m-d' }}</div>
+                                    <div class="font-mono text-sm font-semibold text-gray-900">{{ log.timestamp|date:'H:i:s' }}</div>
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900 text-ellipsis overflow-hidden max-w-[150px]" title="{{ log.skill_name }}">
+                                    {{ log.skill_name }}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                    {% if 'SUCCESS' in log.status or 'success' in log.status %}
+                                        <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Success</span>
+                                    {% elif 'FAILURE' in log.status or 'failure' in log.status or 'ERROR' in log.status %}
+                                        <span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">Failed</span>
+                                    {% elif 'STARTED' in log.status or 'RUNNING' in log.status %}
+                                        <span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">Running</span>
+                                    {% else %}
+                                        <span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">{{ log.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-4 text-sm text-gray-500">
+                                    <div class="max-w-md truncate font-mono text-xs bg-slate-50 p-1 rounded border border-slate-100" title="{{ log.result_summary }}">
+                                        {{ log.result_summary|default:'-' }}
+                                    </div>
+                                </td>
+                                <td class="relative whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
+                                    <div class="flex justify-end items-center gap-2">
+                                        <a href="{% url 'api_services:task_log_edit' log.id %}" class="text-indigo-600 hover:text-indigo-900 text-xs px-2 py-1 rounded hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-colors">
+                                            详情
+                                        </a>
+                                        <form method="post" onsubmit="return confirm('确认删除该日志记录？');" class="inline-block">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete_log">
+                                            <input type="hidden" name="log_id" value="{{ log.id }}">
+                                            <button type="submit" class="text-slate-400 hover:text-red-600 px-1 py-1 rounded transition-colors" title="Delete Log">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500 bg-gray-50 italic">
+                                    暂无执行记录
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer class="bg-white border-t border-gray-200 mt-auto">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-gray-500">&copy; {% now "Y" %} Workflow Engine. All rights reserved.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

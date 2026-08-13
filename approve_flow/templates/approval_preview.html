@@ -1,0 +1,182 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>审批预览 - Workflow Engine</title>
+    <link href="{% static 'css/tailwind.css' %}" rel="stylesheet">
+    <link href="{% static 'plugins/fontawesome/css/all.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/custom.css' %}" rel="stylesheet">
+    <style>
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        .step-node:last-child .chevron { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-6 md:p-12">
+<div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">
+            <i class="fas fa-project-diagram text-indigo-600 mr-3"></i>审批流程预览
+        </h1>
+    </div>
+    <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
+        <h2 class="text-sm font-bold text-slate-500 uppercase mb-8 tracking-widest text-center border-b pb-4">实时审批链预览</h2>
+        <div id="path-container" class="relative">
+            <div id="empty-state" class="hidden text-center py-20">
+                <div class="bg-slate-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i class="fas fa-microchip text-slate-200 text-4xl"></i>
+                </div>
+                <p class="text-slate-400 font-medium">没有可供预览的审批路径。</p>
+            </div>
+
+            <div id="loading-state" class="text-center py-20">
+                <i class="fas fa-spinner fa-spin text-indigo-500 text-4xl"></i>
+                <p class="text-slate-500 font-medium mt-6">正在加载审批路径...</p>
+            </div>
+
+            <div id="path-content" class="hidden">
+                <div id="visual-path" class="flex flex-wrap items-center justify-center gap-y-8 mb-16 pt-4">
+                    <div class="flex items-center">
+                        <div class="flex flex-col items-center">
+                            <div class="bg-yellow-600 text-black w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-4 border-blue mb-2">
+                                <i class="fas fa-user-edit text-sm"></i>
+                            </div>
+                            <span class="text-[11px] font-bold text-slate-500 uppercase">发起申请</span>
+                        </div>
+                        <i class="fas fa-long-arrow-alt-right mx-6 text-slate-300 text-xl"></i>
+                    </div>
+                    
+                    <div id="dynamic-nodes" class="flex items-center flex-wrap gap-y-8"></div>
+                    
+                    <div class="flex items-center">
+                        <div class="flex flex-col items-center">
+                            <div class="bg-green-600 text-black w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-4 border-blue mb-2">
+                                <i class="fas fa-check-double text-sm"></i>
+                            </div>
+                            <div id="end-node" class="w-10 h-10 rounded-full bg-slate-100 text-white flex items-center justify-center">
+                                <i class="fas fa-flag-checkered text-xs"></i>
+                            </div>                                    
+                            <span class="text-[11px] font-bold text-emerald-600 uppercase">审批完成</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-10">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div class="h-4 w-1 bg-indigo-500 rounded-full"></div>
+                        <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider">节点审批人明细</h3>
+                    </div>
+                    <div id="detail-cards" class="space-y-5"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const emptyState = document.getElementById('empty-state');
+        const loadingState = document.getElementById('loading-state');
+        const pathContent = document.getElementById('path-content');
+        const dynamicNodes = document.getElementById('dynamic-nodes');
+        const detailCards = document.getElementById('detail-cards');
+        
+        // 从 Django 模板中获取并解析审批步骤数据
+        const steps = JSON.parse('{{steps|safe}}');
+
+        function renderPath(steps) {
+            if (!steps || steps.length === 0) {
+                loadingState.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            pathContent.classList.remove('hidden');
+            dynamicNodes.innerHTML = '';
+            detailCards.innerHTML = '';
+
+            steps.forEach((step, index) => {
+                // 1. 渲染水平流程图节点
+                const node = document.createElement('div');
+                node.className = 'flex items-center animate-fade-in';
+                node.innerHTML = `
+                    <div class="flex flex-col items-center">
+                        <div class="bg-white border-2 ${step.is_superior ? 'border-purple-500 shadow-purple-100' : 'border-indigo-500 shadow-indigo-100'} px-5 py-2.5 rounded-2xl shadow-xl transition-all">
+                            <p class="text-[9px] font-black ${step.is_superior ? 'text-purple-500' : 'text-indigo-500'} uppercase tracking-tighter mb-0.5">${step.is_superior ? 'Hierarchy' : 'Function'}</p>
+                            <p class="text-xs font-extrabold text-slate-700 whitespace-nowrap">${step.name}</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-long-arrow-alt-right mx-6 text-slate-200 text-xl"></i>
+                `;
+                dynamicNodes.appendChild(node);
+
+                // 2. 准备审批人标签
+                const approverList = Array.isArray(step.approvers) ? step.approvers : [];
+                const approverTags = approverList.map(approver => {
+                    const isManager = approver.category === 'Superior';
+                    return `
+                        <div class="flex items-center bg-white border ${isManager ? 'border-purple-200' : 'border-indigo-100'} rounded-lg px-2 py-1.5 shadow-sm">
+                            <div class="w-6 h-6 rounded-md ${isManager ? 'bg-purple-600' : 'bg-indigo-500'} flex items-center justify-center text-[10px] text-white font-bold mr-2">
+                                ${approver.name.charAt(0)}
+                            </div>
+                            <span class="text-xs font-bold ${isManager ? 'text-purple-700' : 'text-indigo-700'}">${approver.name}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                // 3. 渲染详情卡片
+                const card = document.createElement('div');
+                card.className = `group p-5 rounded-2xl border transition-all hover:shadow-lg animate-fade-in ${step.is_superior ? 'bg-purple-50/40 border-purple-100' : 'bg-slate-50 border-slate-200'}`;
+                
+                card.innerHTML = `
+                    <div class="flex items-start gap-5">
+                        <div class="bg-white w-12 h-12 rounded-2xl flex flex-col items-center justify-center shadow-sm border border-slate-100 shrink-0">
+                            <span class="text-[10px] font-black text-slate-300 uppercase leading-none">Step</span>
+                            <span class="text-lg font-black text-slate-800">${index + 1}</span>
+                        </div>
+                        <div class="grow">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h4 class="font-black text-slate-800 text-base leading-tight">${step.name}</h4>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">LEVEL ${step.level}</span>
+                                        <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100 uppercase">${step.approve_mode}</span>
+                                    </div>
+                               </div>
+                               <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">(${step.amount_control ? '金额控制' : '无金额控制'})</span>
+                                        <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">金额范围 (${step.min_amount} - ${step.max_amount}) </span>
+                                    </div>
+                                </div>                                
+                                <div class="text-right">
+                                    <span class="text-[10px] font-black px-2 py-1 rounded-md uppercase ${step.is_superior ? 'bg-purple-600 text-white' : 'bg-indigo-600 text-white'} shadow-sm">
+                                        ${step.is_superior ? '逐级上报' : '职能路由'}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-wrap gap-3">
+                                ${approverTags || `
+                                    <div class="flex items-center bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                                        <i class="fas fa-exclamation-triangle text-rose-500 mr-2 text-xs"></i>
+                                        <span class="text-xs font-bold text-rose-600 italic">未找到有效审批人 (请检查组织架构或角色配置)</span>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                detailCards.appendChild(card);
+            });
+            loadingState.classList.add('hidden');
+        }
+
+        renderPath(steps);
+    });
+</script>
+
+</body>
+</html>

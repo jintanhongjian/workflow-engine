@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统主控制台 - Workflow Engine</title>
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/plugins/fontawesome/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fas fa-network-wired mr-3"></i> Workflow Engine 控制台
+            </h1>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            
+            <!-- 组织架构管理 -->
+            <a href="/workflow/org/dashboard/" class="block group">
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all p-6 border border-slate-100 h-full flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-2">组织架构管理</h2>
+                    <p class="text-slate-500 text-xs">管理部门树、用户和角色关系配置。</p>
+                </div>
+            </a>
+
+            <!-- 流程设计器 -->
+            <a href="/workflow/design/" class="block group">
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all p-6 border border-slate-100 h-full flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-2">流程设计器</h2>
+                    <p class="text-slate-500 text-xs">可视化拖拽配置复杂的审批业务流转规则。</p>
+                </div>
+            </a>
+
+            <!-- 模拟测试中心 -->
+            <a href="/workflow/test-center/" class="block group">
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all p-6 border border-slate-100 h-full flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-vial"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-2">审批沙盘模拟</h2>
+                    <p class="text-slate-500 text-xs">新建测试单据，预测和测试各种审批路径配置及容错率。</p>
+                </div>
+            </a>
+
+            <!-- 定时任务管理 -->
+            <a href="/api/tasks/manage/" class="block group">
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all p-6 border border-slate-100 h-full flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-2">自动化任务调度</h2>
+                    <p class="text-slate-500 text-xs">配置和监控 Celery 周期性自动化任务引擎，管理系统脚本。</p>
+                </div>
+            </a>
+
+            <!-- AI 工作台 -->
+            <a href="/api/ai/workbench/" class="block group">
+                <div class="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all p-6 border border-slate-100 h-full flex flex-col items-center text-center">
+                    <div class="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800 mb-2">AI 工作台</h2>
+                    <p class="text-slate-500 text-xs">交互式AI配置中心，与本地知识库和LLM接口进行调试对接。</p>
+                </div>
+            </a>
+
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,284 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编辑 AI 订阅 - {{ object.report_title }}</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7fa; }
+        .glass-panel {
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .input-focus-effect { transition: all 0.2s ease-in-out; }
+        .input-focus-effect:focus {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+    </style>
+    <button onclick="subs_manage()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 transition">
+        返回订阅管理中心
+    </button>
+</head>
+<body class="py-12 px-4 md:px-0">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-black text-gray-900 tracking-tight">修改订阅配置</h1>
+            <p class="mt-3 text-lg text-gray-600">正在编辑：<span class="text-indigo-600">{{ object.report_title }}</span></p>
+        </header>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-8">
+            {% csrf_token %}
+            
+            <section class="glass-panel p-8">
+                <div class="flex items-center justify-between mb-6 border-l-4 border-indigo-600 pl-4">
+                    <h2 class="text-xl font-bold text-gray-800">订阅接收人管理</h2>
+                    <button type="button" onclick="addEmailField()" class="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-md hover:bg-indigo-100 font-bold transition">
+                        + 添加新成员
+                    </button>
+                </div>
+                <div id="emailContainer" class="space-y-3">
+                    {% for recipient in object.recipient_list.all %}
+                    <div class="flex gap-3 items-center animate-fade-in">
+                        <input type="email" name="recipient_emails[]" value="{{ recipient.email }}" required 
+                            class="flex-1 px-4 py-3 border border-gray-200 rounded-lg outline-none input-focus-effect text-lg bg-gray-50">
+                        <button type="button" onclick="this.parentElement.remove()" class="text-gray-400 hover:text-red-500 p-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                    {% empty %}
+                    <div class="flex gap-3 items-center">
+                        <input type="email" name="recipient_emails[]" required placeholder="接收邮箱" 
+                            class="flex-1 px-4 py-3 border border-gray-200 rounded-lg outline-none input-focus-effect text-lg bg-gray-50">
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="glass-panel p-8">
+                <div class="flex items-center mb-6 border-l-4 border-indigo-600 pl-4">
+                    <h2 class="text-xl font-bold text-gray-800">订阅名称</h2>
+                </div>
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">简报名称</label>
+                        <input type="text" name="report_title" placeholder="例如：大模型技术前哨 / 每日 AI 投融资简讯" value="{{ form.report_title.value|default:'' }}" required
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none input-focus-effect text-lg">
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass-panel p-8">
+                <div class="flex items-center mb-6 border-l-4 border-indigo-600 pl-4">
+                    <h2 class="text-xl font-bold text-gray-800">核心订阅逻辑</h2>
+                </div>
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">关注关键词</label>
+                        <input type="text" name="keywords" value="{{ form.keywords.value|default:'' }}" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none input-focus-effect text-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">详细内容描述</label>
+                        <textarea name="description" rows="10" 
+                                  class="w-full px-4 py-4 border border-gray-300 rounded-lg outline-none input-focus-effect text-base leading-relaxed resize-y">{{ form.description.value|default:'' }}</textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">已有关联文档</label>
+                        <div id="existing-files" class="space-y-3">
+                            {% for doc in object.documents.all %}
+                            <div class="file-item flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl hover:border-red-200 transition-colors" id="file-node-{{ doc.id }}">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-gray-400">📄</span>
+                                    <span class="text-sm font-medium text-gray-700 truncate max-w-[600px]">{{ doc.file.name|slice:"13:" }}</span>
+                                </div>
+                                
+                                <div class="flex items-center space-x-4">
+                                    <a href="{{ doc.file.url }}" target="_blank" class="text-xs text-indigo-600 font-bold hover:underline">预览</a>
+                                    <button type="button" 
+                                            onclick="removeFile('{{ doc.id }}')"
+                                            class="text-red-400 hover:text-red-600 transition">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <p class="text-sm text-gray-400 italic">暂无参考文档</p>
+                            {% endfor %}
+                        </div>        
+                        <label class="block text-sm font-bold text-gray-700 mb-2">追加参考资料 (PDF/Word/TXT)</label>
+                        <input type="file" name="attachments" multiple accept=".pdf,.doc,.docx,.txt"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none bg-gray-50 text-sm">
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass-panel p-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-3">生成周期</label>
+                        <select name="period" class="w-full px-3 py-2 border border-gray-300 rounded-md outline-none bg-white">
+                            <option value="daily" {% if form.period.value == 'daily' %}selected{% endif %}>每日汇总</option>
+                            <option value="weekly" {% if form.period.value == 'weekly' %}selected{% endif %}>每周复盘</option>
+                            <option value="monthly" {% if form.period.value == 'monthly' %}selected{% endif %}>每月总结</option>
+                            <option value="quarterly" {% if form.period.value == 'quarterly' %}selected{% endif %}>季度深挖</option>
+                            <option value="yearly" {% if form.period.value == 'yearly' %}selected{% endif %}>年度汇报</option>
+                            <option value="realtime" {% if form.period.value == 'realtime' %}selected{% endif %}>实时推送</option>
+                        </select>
+                        <input type="time" name="send_time" value="{{ form.send_time.value|time:'H:i' }}" class="mt-3 w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-3">输出格式</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center text-sm text-gray-600">
+                                <input type="radio" name="format_type" value="markdown" {% if form.format_type.value == 'markdown' %}checked{% endif %} class="mr-2"> Markdown
+                            </label>
+                            {% comment %} <label class="flex items-center text-sm text-gray-600">
+                                <input type="radio" name="format_type" value="pdf" {% if form.format_type.value == 'pdf' %}checked{% endif %} class="mr-2"> PDF 附件
+                            </label> {% endcomment %}
+                            <label class="flex items-center text-sm text-gray-600">
+                                <input type="radio" name="format_type" value="json" {% if form.format_type.value == 'json' %}checked{% endif %} class="mr-2"> JSON 数据
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="glass-panel p-8">
+                <div class="flex items-center mb-6 border-l-4 border-indigo-600 pl-4">
+                    <h2 class="text-xl font-bold text-gray-800">订阅时间管理</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">订阅起始日期</label>
+                        <input type="date" 
+                            name="subscription_date" 
+                            # 关键点：使用 |date:"Y-m-d" 过滤器确保格式符合 HTML5 标准
+                            value="{{ form.subscription_date.value|date:'Y-m-d' }}" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg outline-none input-focus-effect text-lg">
+                        
+                        {% if form.subscription_date.errors %}
+                            <p class="text-red-500 text-xs mt-1">{{ form.subscription_date.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex items-end">
+                        <p class="text-sm text-gray-500 pb-3 italic">
+                            * 修改此日期将影响简报的历史回溯范围。
+                        </p>
+                    </div>
+                </div>
+                <div class="mb-6 flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <div>
+                        <h3 class="text-sm font-bold text-indigo-900">当前订阅状态</h3>
+                        <p class="text-xs text-indigo-600">关闭后将停止所有定时和实时报告生成</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+            </section>
+            <div class="pb-12 text-center flex justify-center space-x-4">
+                <a href="{% url 'ai_subscription:subs_manage' %}" class="px-16 py-4 rounded-xl font-bold text-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition">取消返回</a>
+                <button type="submit" 
+                        class="bg-indigo-600 text-white px-16 py-4 rounded-xl font-black text-xl hover:bg-indigo-700 shadow-2xl transition transform hover:scale-105 active:scale-95">
+                    保存修改
+                </button>
+            </div>
+        </form>
+    </div>
+<script>
+    // 当 period 被选为 realtime 时，具体的 send_time 是无效的。我们需要通过 JavaScript 让它变灰，避免用户产生误解。
+    document.addEventListener('DOMContentLoaded', function() {
+        const periodSelect = document.querySelector('select[name="period"]');
+        const timeInput = document.querySelector('input[name="send_time"]');
+        function toggleTimeInput() {
+            if (periodSelect.value === 'realtime') {
+                timeInput.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                timeInput.readOnly = true;
+            } else {
+                timeInput.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                timeInput.readOnly = false;
+            }
+        }
+
+        // 初始化检查 + 切换监听
+        toggleTimeInput();
+        periodSelect.addEventListener('change', toggleTimeInput);
+    });
+
+    function subs_manage() {
+        // 假设你的 Django 路由 name='subs_manage' 对应的路径是 '/subs_manage/'
+        window.location.href = '/subs/subs_manage/';
+    }
+
+    function addEmailField() {
+        const container = document.getElementById('emailContainer');
+        const div = document.createElement('div');
+        div.className = "flex gap-3 items-center mt-3 opacity-0 transform translate-y-2 transition-all duration-300";
+        div.innerHTML = `
+            <input type="email" name="recipient_emails[]" required placeholder="新接收人邮箱" 
+                class="flex-1 px-4 py-3 border border-gray-200 rounded-lg outline-none input-focus-effect text-lg bg-gray-50">
+            <button type="button" onclick="this.parentElement.remove()" class="text-gray-400 hover:text-red-500 p-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+        `;
+        container.appendChild(div);
+        setTimeout(() => div.classList.remove('opacity-0', 'translate-y-2'), 10);
+    }
+
+    // 获取 Cookie 的辅助函数
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function removeFile(fileId) {
+        if (!confirm('确定要永久删除该参考文件吗？')) return;
+        const formData = new FormData();
+        formData.append('file_id', fileId);
+        
+        // 获取 CSRF Token (复用你之前的 getCookie 函数)
+        const csrftoken = getCookie('csrftoken');
+
+        try {
+            const response = await fetch('/api/delete-file/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': csrftoken }
+            });
+
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                // 实时移除 DOM 节点
+                const node = document.getElementById(`file-node-${fileId}`);
+                node.classList.add('opacity-0', 'scale-95'); // 添加淡出效果
+                setTimeout(() => node.remove(), 300);
+            } else {
+                alert('错误: ' + result.message);
+            }
+        } catch (error) {
+            console.error('删除请求失败:', error);
+        }
+    }
+</script>
+</body>
+</html>

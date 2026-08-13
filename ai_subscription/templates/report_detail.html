@@ -1,0 +1,97 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.subscription.report_title }} - 简报详情</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/typography.min.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f3f4f6; font-family: 'Inter', system-ui, sans-serif; }
+        .markdown-content h1 { border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem; }
+        /* 针对代码块的美化 */
+        pre { background: #1e293b !important; color: #f8fafc !important; border-radius: 0.75rem; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="max-w-4xl mx-auto px-4 py-12">
+        <div class="flex items-center justify-between mb-8">
+            <a href="{% url 'ai_subscription:report_history_list' report.subscription.id %}" class="flex items-center text-gray-500 hover:text-indigo-600 transition font-medium">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7 7-7"></path>
+                </svg>
+                返回历史列表
+            </a>
+            <div class="flex space-x-2">
+                <button onclick="window.print()" class="p-2 text-gray-400 hover:text-gray-600" title="打印/导出PDF">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <main class="bg-white rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden border border-gray-100">
+            <header class="bg-blue-400 px-8 py-10 text-white">
+                <div class="flex items-center space-x-3 mb-4">
+                    <span class="px-3 py-1 bg-indigo-500 text-[10px] font-bold uppercase tracking-widest rounded-full">Intel Report</span>
+                    <span class="text-slate-400 text-xs font-mono">ID: #{{ report.id }}</span>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-black mb-6">{{ report.subscription.report_title }}</h1>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-800">
+                    <div>
+                        <p class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">推送至</p>
+                        <p class="text-sm font-medium truncate">{{ report.recipients }}</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">生成于</p>
+                        <p class="text-sm font-medium">{{ report.report_date|date:"Y年m月d日 H:i:s" }}</p>
+                    </div>
+                </div>
+            </header>
+
+            <div class="px-8 py-12 md:px-12 bg-white">
+                <article id="markdown-container" class="markdown-content prose prose-indigo prose-lg max-w-none prose-img:rounded-xl prose-headings:text-slate-900 prose-a:text-indigo-600">
+{{ report.content_markdown }}
+                </article>
+            </div>
+
+            <footer class="px-8 py-6 bg-gray-50 border-t border-gray-100 text-center">
+                <p class="text-gray-400 text-xs font-medium">本报告由 AI 自动生成，内容仅供参考。© 2026 AI Subscription System</p>
+            </footer>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('markdown-container');
+            
+            // 资深程序员的小技巧：获取原始内容（处理HTML转义字符）
+            const rawMarkdown = container.textContent.trim();
+            
+            // 配置渲染器
+            marked.setOptions({
+                gfm: true,        // 启用 GitHub 风格的 Markdown
+                breaks: true,     // 允许换行
+                headerIds: true   // 为标题生成 ID
+            });
+
+            // 渲染并替换
+            container.innerHTML = marked.parse(rawMarkdown);
+            
+            // 处理打印时的标题
+            if (window.matchMedia) {
+                const mediaQueryList = window.matchMedia('print');
+                mediaQueryList.addListener((mql) => {
+                    if (mql.matches) {
+                        document.title = "Report_{{ report.report_date|date:'Ymd' }}";
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

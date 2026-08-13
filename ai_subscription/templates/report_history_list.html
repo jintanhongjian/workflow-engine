@@ -1,0 +1,160 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简报历史归档 - {{ subscription.report_title }}</title>
+    <link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet">
+    <style>
+        body { background-color: #f8fafc; font-family: 'PingFang SC', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .status-dot {
+            height: 8px;
+            width: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="py-12 px-4">
+    {% if messages %}
+        {% for message in messages %}
+        <div class="mb-4 p-4 rounded-xl {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+    <div class="max-w-5xl mx-auto">
+        <nav class="flex items-center space-x-2 text-sm text-gray-400 mb-8">
+        <button onclick="subs_manage()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 transition">
+            返回订阅管理中心
+        </button>            
+        <span>/</span>
+        <span class="text-gray-600">历史归档</span>
+        </nav>
+
+        <header class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+                <h1 class="text-4xl font-black text-gray-900 tracking-tight mb-2">{{ subscription.report_title }}</h1>
+                <p class="text-gray-500 flex items-center">
+                    <span class="status-dot bg-green-500 mr-2"></span>
+                    共有 {{ histories.count }} 份历史简报存储在归档库中
+                </p>
+            </div>
+            <div class="flex space-x-3">
+                <a href="{% url 'ai_subscription:subscription_update' subscription.pk %}" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition shadow-sm">
+                    编辑配置
+                </a>
+            </div>
+        </header>
+
+        <div class="glass-panel rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50/50 border-b border-gray-100">
+                            <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">生成日期</th>
+                            <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">接收范围</th>
+                            <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">摘要预览</th>
+                            <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        {% for history in histories %}
+                        <tr class="hover:bg-indigo-50/30 transition-colors group">
+                            <td class="px-8 py-6 whitespace-nowrap">
+                                <span class="text-gray-900 font-bold block">{{ history.report_date|date:"Y-m-d" }}</span>
+                                <span class="text-gray-400 text-xs">{{ history.report_date|time:"H:i:s" }}</span>
+                            </td>
+
+                            <td class="px-8 py-6">
+                                <div class="flex flex-wrap gap-2 max-w-[300px]">
+                                    {% if history.recipients_list %} 
+                                        {# 假设你在后端处理成了列表，或者在此使用 split #}
+                                        {% for email in history.recipients.split %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                                {{ email|truncatechars:20 }}
+                                            </span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-sm text-gray-500">{{ history.recipients }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <td class="px-8 py-6 w-[60%]">
+                                <div class="flex flex-col">
+                                    <p class="text-sm text-gray-800 italic line-clamp-2 leading-relaxed" title="{{ history.summary }}">
+                                        {{ history.summary|default:"点击查看详细情报内容..." }}
+                                    </p>                                    
+                                </div>
+                            </td>
+
+                            <td class="px-8 py-6 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end space-x-3">
+                                    <a href="{% url 'ai_subscription:report_detail' history.id %}" class="inline-flex items-center px-4 py-2 bg-white text-indigo-600 text-sm font-bold rounded-lg border border-indigo-100 shadow-sm hover:bg-indigo-600 hover:text-white transition-all">
+                                        阅读
+                                        <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7-7 7"></path>
+                                        </svg>
+                                    </a>
+
+                                    <form action="{% url 'ai_subscription:delete_report_history' history.id %}" method="POST" onsubmit="return confirm('确定要永久删除这份历史简报吗？此操作不可撤销。');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="删除记录">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>                            
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-8 py-20 text-center">
+                                <div class="flex flex-col items-center">
+                                    <svg class="w-12 h-12 text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                                    </svg>
+                                    <p class="text-gray-400">该订阅目前还没有生成任何历史简报</p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if is_paginated %}
+            <div class="px-8 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
+                <span class="text-xs text-gray-400">第 {{ page_obj.number }} 页 / 共 {{ paginator.num_pages }} 页</span>
+                <div class="flex space-x-2">
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}" class="p-2 bg-white border rounded hover:bg-gray-100 transition">上一页</a>
+                    {% endif %}
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}" class="p-2 bg-white border rounded hover:bg-gray-100 transition">下一页</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <footer class="mt-12 text-center">
+            <p class="text-xs text-gray-300">数据保留政策：系统默认保留最近 180 天生成的简报记录</p>
+        </footer>
+    </div>
+<script>
+    function subs_manage() {
+        window.location.href = "{% url 'ai_subscription:subs_manage' %}";
+    }
+</script>
+</body>
+</html>
