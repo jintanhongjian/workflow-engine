@@ -1,75 +1,115 @@
-## UserScheduledTask 附件参数自动映射
+# Workflow Engine 
 
-系统会在保存定时任务时，自动将 `TaskAttachment` 上传的附件路径注入到任务参数中。
+这是一个基于 Django、Celery 和 Redis 构建的自动化工作流系统，致力于实现 AI 服务对接（Google Gemini, OpenAI）、企微通知、RPA 支持任务调度管理的综合引擎平台。
 
-可在 `workflow-engine/settings.py` 中配置以下两个变量：
+## 系统架构与技术栈
 
-- `TASK_ATTACHMENT_PARAM_NAMES`：精确参数名匹配（优先级最高）
-- `TASK_ATTACHMENT_PARAM_KEYWORDS`：关键字模糊匹配（兜底）
+* **Web 框架**: Django 6.0+
+* **前端展示**: Tailwind CSS (通过 Node.js 包环境管理)
+* **任务队列**: Celery 5.4+ (与 Django 紧密集成)
+* **消息队列中间件**: Redis
+* **生产服务器**: Gunicorn (运行 WSGI 应用)
+* **依赖管理**: `uv` (新一代 Python 包构建与管理工具)
+* **API 与 SDK 支持**: Google Gemini、OpenAI、WeCom (企业微信)、n8n 等。
 
-默认配置示例：
+## 环境要求
 
-```python
-TASK_ATTACHMENT_PARAM_NAMES = [
-	'attachments',
-	'attachment',
-	'files',
-	'file_paths',
-	'docs',
-	'documents',
-]
+* Linux 服务器环境（推荐 Ubuntu/Debian）
+* Python 3.12
+* Node.js 20+
+* PostgreSQL 环境 (可选，支持配置业务数据库)
+* 本地 SQLite (Django 默认库，以及 Celery-beat 配置)
+* Redis
 
-TASK_ATTACHMENT_PARAM_KEYWORDS = [
-	'attachment',
-	'file',
-	'doc',
-]
+## 快速安装与部署
+
+本项目提供自动化的一键安装脚本，可自动检查包管理器、安装系统依赖、Node/Redis、虚拟环境与 Python 包依赖，并进行数据库初始化工作。
+
+1. **进入项目目录**并赋予脚本执行权限：
+   ```bash
+   cd /home/joehong/workflow-engine
+   chmod +x *.sh
+   ```
+
+2. **执行自动部署脚本**：
+   ```bash
+   ./install.sh
+   ```
+   > 脚本将自动安装 `uv` 等工具，创建 `.venv` 虚拟环境，并安装 `requirements.txt`。同时会帮助你在 `~/.workflow_engine_env` 预写入环境变量配置。
+
+3. **配置API密钥** (非常重要)：
+   系统运行依赖 API Key 权限。为了安全，这些信息应配置为系统的环境变量。你可以在启动前或者在 `.bashrc`、`~/.profile` 中补充（也可以写到 `~/.workflow_engine_env` 文件里由系统自己 source 引用）：
+   ```bash
+   export GEMINI_API_KEY="your-gemini-api-key"
+   export GITHUB_API_KEY="your-github-api-key"
+   export TKH_N8N_API_KEY="your-tkh-n8n-api-key"
+   ```
+
+## 服务管理 (启停与监控)
+
+本项目包含了完整的服务管理统筹脚本 `service_control.sh`，可一键管理包含 Web 服务器 (Gunicorn) 和 任务队列 (Celery Worker & Celery Beat) 以及 Redis 服务。
+
+### 常用命令
+（在执行前，请确保你在虚拟环境中 `source .venv/bin/activate` 或由脚本内部分配应用账号权限完成分发启动）
+
+* **一键启全线服务 (Gunicorn, Celery Worker, Celery Beat, Redis)**：
+  ```bash
+  ./service_control.sh start
+  ```
+* **一键停止所有服务**：
+  ```bash
+  ./service_control.sh stop
+  ```
+* **查看各服务状态**：
+  ```bash
+  ./service_control.sh status
+  ```
+* **重启所有服务**：
+  ```bash
+  ./service_control.sh restart
+  ```
+
+### 服务监控与进程自愈
+你可以利用 `monitor_services.sh` 作为守护进程，保障因系统意外宕机的组件重新拉端启动：
+```bash
+./monitor_services.sh --interval 60 
 ```
 
-说明：
+## 目录结构说明
 
-- 当任务函数参数名命中上述规则时，会自动使用该任务关联的 `TaskAttachment` 文件路径。
-- 若参数类型为 `list`，会注入全部附件路径；否则注入首个附件路径（无附件则为 `None`）。
+* **`api_services/`**: 系统核心 API 服务，提供对外能力及系统内技能服务逻辑及技能页面 (Skills) 支持。
+* **`ai_subscription/`**: AI 订阅应用能力组件模块。
+* **`approve_flow/`**: 系统内置审批流定义、视图处理逻辑模块。
+* **`workflow-engine/`**: Django 项目系统核心设置与总路由定义（主 `settings.py` 所在处）。
+* **`logs/`**: 相关服务器（Gunicorn）和定时任务节点调度队列产生的日志统一汇聚地。
+* **`pids/`**: 服务进程 PID 持久化定位，供守护和启停分析使用。
 
-## 后台使用步骤（Admin）
+---
 
-1. 进入 `UserScheduledTask` 新建或编辑任务。
-2. 选择 `task_name`，系统会展示该任务函数参数说明，并可初始化 `task_params` 模板。
-3. 在同页的附件区域上传一个或多个 `TaskAttachment`。
-4. 保存任务后，系统会自动将附件路径注入命中的任务参数字段（如 `attachments`、`files` 等）。
+## 附录：UserScheduledTask 定时任务附件自动注入指引
 
-### 验证方式
+系统后台支持在 `UserScheduledTask` 模块新建具有附件依赖的定期调度任务，自动把通过 `TaskAttachment` 控件上传的物理文件在运行时注给开发函数的传入对象中。
 
-- 在 Django Admin 中查看该任务关联的 `PeriodicTask.kwargs`，确认附件参数已被替换为上传文件路径。
-- 如果未注入，请检查任务函数参数名是否命中 `TASK_ATTACHMENT_PARAM_NAMES` 或 `TASK_ATTACHMENT_PARAM_KEYWORDS`。
+### 1) 参数名智能映射配置 
+在 `workflow-engine/settings.py` 中有如下预设映射判断：
+```python
+TASK_ATTACHMENT_PARAM_NAMES = ['attachments', 'attachment', 'files', 'file_paths', 'docs', 'documents']
+TASK_ATTACHMENT_PARAM_KEYWORDS = ['attachment', 'file', 'doc']
+```
+* **原理**: 当绑定的任务函数参数名命中上述任意规则时，调度执行时系统会把当前任务在平台面上传所绑定的文件路径替代送入。若参数类别为 `list`，注入全部路径数组，若非数组型列表，仅注入该层级里第一个有效文件路径。
 
-## 常见问题（FAQ）
+### 2) Admin 后台实操步骤
+1. 进入 Django Admin 后台，操作新建或者修改 `UserScheduledTask` 任务。
+2. 下拉框选择将要在 Celery 执行的 `task_name`（比如选择某一个用于文本解析处理和发件逻辑的函数），这时候后台会动态展示对应函数该需要的参数形态（`task_params`）。
+3. 界面靠下存在附件上传控制区 `TaskAttachment`，上传所需要分析文件。
+4. 点击保存后，系统的表间信号等机制将会检查 `kwargs`，把这些有效文件的路径准确替换。
 
-### 1) 为什么切换 `task_name` 后，`task_params` 被覆盖？
+### 3) 典型排错问题 (FAQ)
 
-- 这是当前后台设计：切换任务函数时会弹出确认框，确认后用新任务的参数模板覆盖 `task_params`，避免旧任务参数污染新任务。
+* **Q: 为什么刚才写的 `task_params` 在切 `task_name` 时被刷白了？**
+  * **A:** 此为目前前端页的保护机制：在切换新函数时弹框提醒如果决定采用，默认新发重取函数默认参数原型避免类型数据污染所引发任务挂掉，如果想坚持目前表单输入的话在切换提醒点**取消**即可。
+* **Q: 文件传完了但系统没把内容注入给目标变量里**
+  * **A:** 第一请确定目标函数声明在 `settings.py` 提供匹配名称上；第二再去检查模型面板本身附件是成功绑定且被实际存在盘体物理目录中。
+* **Q: 发生系统更新版本时的注意点？**
+  * **A:** 涉及含有数据库修改结构变更的情况下（例如增加字段或模型补全文件自动命名类回填操作等如历史记录产生的`0015,0016`版本升级时），千万注意在拉取合并代码后再次执行 `uv run manage.py migrate api_services` 让其彻底跑进 SQLite 业务端去，同时手动验证 `UserScheduledTask.last_run_at` 获取确保整体工作机能依旧完好生效。
 
-### 2) 我不想覆盖已有 `task_params`，怎么办？
-
-- 在切换任务时选择“取消”。
-- 如需改为“仅空值时填充、不强制覆盖”，可调整 `api_services/static/api_services/js/user_scheduled_task_admin.js` 的切换逻辑。
-
-### 3) 附件已上传，但任务参数里没有附件路径？
-
-- 先确认任务函数参数名能命中映射规则（`TASK_ATTACHMENT_PARAM_NAMES` / `TASK_ATTACHMENT_PARAM_KEYWORDS`）。
-- 再确认附件是挂在当前 `UserScheduledTask` 下，并已成功保存。
-- 最后检查 `PeriodicTask.kwargs` 中对应参数是否被注入。
-
-### 4) 为什么有两个附件文件名相关迁移（`0015`、`0016`）？
-
-- `0015` 是历史变更，字段默认值存在不规范情况。
-- `0016` 是后续修正，将 `TaskAttachment.filename` 统一为 `blank=True, default=''`，并配合模型 `save()` 自动回填上传文件名。
-- 线上环境以最新迁移状态为准，执行 `migrate` 后即可保持一致行为。
-
-## 升级检查清单（发布前）
-
-- 执行迁移：`uv run manage.py migrate api_services`
-- 健康检查：`uv run manage.py check`
-- 后台新增 `UserScheduledTask` 并上传附件，确认 `TaskAttachment.filename` 自动回填为上传文件名
-- 任务保存后检查 `PeriodicTask.kwargs`，确认附件参数（如 `attachments/files/docs`）已注入文件路径
-- 手动触发一次任务，确认 `UserScheduledTask.last_run_at` 有更新
